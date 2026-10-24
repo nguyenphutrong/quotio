@@ -1,0 +1,294 @@
+{
+  "schema_version": 2,
+  "host": {
+    "id": "design-fixture",
+    "platform": "linux",
+    "api_versions": [
+      2
+    ],
+    "capabilities": {}
+  },
+  "revision": 1,
+  "generated_at": "2026-10-16T09:00:00Z",
+  "accounts": [
+    {
+      "id": "claude-admin",
+      "provider_id": "claude",
+      "display_name": "admin@quotio.dev",
+      "user_label": null,
+      "identity": {
+        "evidence": "verified",
+        "username": null,
+        "email": "admin@quotio.dev"
+      },
+      "enabled": true,
+      "active": true,
+      "state": "ready",
+      "sources": [
+        {
+          "id": "claude-admin-source",
+          "origin": "borrowed_native",
+          "kind": "claude_native",
+          "location": "claude_keychain",
+          "enabled": true,
+          "selected": true,
+          "state": "ready",
+          "refresh_owner": "provider_tool",
+          "issue": null,
+          "actions": []
+        }
+      ],
+      "actions": [
+        {
+          "kind": "refresh",
+          "available": true,
+          "reason": null,
+          "interaction": "host"
+        }
+      ]
+    },
+    {
+      "id": "claude-maya",
+      "provider_id": "claude",
+      "display_name": "maya@reinhardt.studio",
+      "user_label": null,
+      "identity": {
+        "evidence": "verified",
+        "username": null,
+        "email": "maya@reinhardt.studio"
+      },
+      "enabled": true,
+      "active": false,
+      "state": "needs_login",
+      "sources": [
+        {
+          "id": "claude-maya-source",
+          "origin": "owned",
+          "kind": "claude_oauth",
+          "location": null,
+          "enabled": true,
+          "selected": true,
+          "state": "needs_login",
+          "refresh_owner": "provider_tool",
+          "issue": null,
+          "actions": []
+        }
+      ],
+      "actions": [
+        {
+          "kind": "refresh",
+          "available": true,
+          "reason": null,
+          "interaction": "host"
+        }
+      ]
+    },
+    {
+      "id": "codex-phutrong",
+      "provider_id": "codex",
+      "display_name": "phutrong.it@gmail.com",
+      "user_label": null,
+      "identity": {
+        "evidence": "verified",
+        "username": null,
+        "email": "phutrong.it@gmail.com"
+      },
+      "enabled": true,
+      "active": true,
+      "state": "ready",
+      "sources": [
+        {
+          "id": "codex-phutrong-source",
+          "origin": "borrowed_native",
+          "kind": "codex_native",
+          "location": "codex_auth_json",
+          "enabled": true,
+          "selected": true,
+          "state": "ready",
+          "refresh_owner": "provider_tool",
+          "issue": null,
+          "actions": []
+        }
+      ],
+      "actions": [
+        {
+          "kind": "refresh",
+          "available": true,
+          "reason": null,
+          "interaction": "host"
+        }
+      ]
+    },
+    {
+      "id": "gemini-nguyen",
+      "provider_id": "gemini",
+      "display_name": "nguyen.dev@gmail.com",
+      "user_label": null,
+      "identity": {
+        "evidence": "verified",
+        "username": null,
+        "email": "nguyen.dev@gmail.com"
+      },
+      "enabled": true,
+      "active": true,
+      "state": "ready",
+      "sources": [
+        {
+          "id": "gemini-nguyen-source",
+          "origin": "borrowed_native",
+          "kind": "gemini_native",
+          "location": "gemini_oauth_creds",
+          "enabled": true,
+          "selected": true,
+          "state": "ready",
+          "refresh_owner": "provider_tool",
+          "issue": null,
+          "actions": []
+        }
+      ],
+      "actions": [
+        {
+          "kind": "refresh",
+          "available": true,
+          "reason": null,
+          "interaction": "host"
+        }
+      ]
+    }
+  ],
+  "usage": [
+    {
+      "account_id": "claude-admin",
+      "freshness": "fresh",
+      "fetched_at": "2026-10-16T09:00:00Z",
+      "expires_at": "2026-10-16T09:05:00Z",
+      "plan": "Max 20x",
+      "metrics": [
+        {
+          "id": "session",
+          "display_name": "Session",
+          "quota": {
+            "state": "available",
+            "used_percent": 26.0,
+            "remaining_percent": 74.0
+          },
+          "amounts": null,
+          "consumption": null,
+          "resets_at": "2026-10-16T10:44:00Z",
+          "reset_description": null,
+          "fetched_at": "2026-10-16T09:00:00Z",
+          "provenance": {
+            "source": "design_fixture",
+            "confidence": "exact"
+          }
+        },
+        {
+          "id": "weekly",
+          "display_name": "Weekly",
+          "quota": {
+            "state": "available",
+            "used_percent": 59.0,
+            "remaining_percent": 41.0
+          },
+          "amounts": null,
+          "consumption": null,
+          "resets_at": "2026-10-19T09:00:00Z",
+          "reset_description": null,
+          "fetched_at": "2026-10-16T09:00:00Z",
+          "provenance": {
+            "source": "design_fixture",
+            "confidence": "exact"
+          }
+        }
+      ],
+      "issue": null
+    },
+    {
+      "account_id": "claude-maya",
+      "freshness": "unavailable",
+      "fetched_at": null,
+      "expires_at": null,
+      "plan": "Pro",
+      "metrics": [],
+      "issue": {
+        "code": "needs_login",
+        "retryable": false,
+        "action": null
+      }
+    },
+    {
+      "account_id": "codex-phutrong",
+      "freshness": "fresh",
+      "fetched_at": "2026-10-16T09:00:00Z",
+      "expires_at": "2026-10-16T09:05:00Z",
+      "plan": "Pro",
+      "metrics": [
+        {
+          "id": "session",
+          "display_name": "Session",
+          "quota": {
+            "state": "available",
+            "used_percent": 8.0,
+            "remaining_percent": 92.0
+          },
+          "amounts": null,
+          "consumption": null,
+          "resets_at": "2026-10-16T12:07:00Z",
+          "reset_description": null,
+          "fetched_at": "2026-10-16T09:00:00Z",
+          "provenance": {
+            "source": "design_fixture",
+            "confidence": "exact"
+          }
+        },
+        {
+          "id": "weekly",
+          "display_name": "Weekly",
+          "quota": {
+            "state": "available",
+            "used_percent": 82.0,
+            "remaining_percent": 18.0
+          },
+          "amounts": null,
+          "consumption": null,
+          "resets_at": "2026-10-22T14:20:00Z",
+          "reset_description": null,
+          "fetched_at": "2026-10-16T09:00:00Z",
+          "provenance": {
+            "source": "design_fixture",
+            "confidence": "exact"
+          }
+        }
+      ],
+      "issue": null
+    },
+    {
+      "account_id": "gemini-nguyen",
+      "freshness": "fresh",
+      "fetched_at": "2026-10-16T09:00:00Z",
+      "expires_at": "2026-10-16T09:05:00Z",
+      "plan": "Free",
+      "metrics": [
+        {
+          "id": "daily-requests",
+          "display_name": "Daily requests",
+          "quota": {
+            "state": "available",
+            "used_percent": 37.0,
+            "remaining_percent": 63.0
+          },
+          "amounts": null,
+          "consumption": null,
+          "resets_at": "2026-10-17T07:00:00Z",
+          "reset_description": null,
+          "fetched_at": "2026-10-16T09:00:00Z",
+          "provenance": {
+            "source": "design_fixture",
+            "confidence": "exact"
+          }
+        }
+      ],
+      "issue": null
+    }
+  ]
+}
