@@ -161,6 +161,15 @@ fn main() -> Result<()> {
             if options.show_settings || !has_tray {
                 app::open_settings(cx);
             }
+            // Without a tray nothing could reopen or quit a windowless app.
+            if !has_tray {
+                cx.on_window_closed(|cx, _| {
+                    if cx.windows().is_empty() {
+                        app::quit(cx);
+                    }
+                })
+                .detach();
+            }
             if options.show_menu {
                 app::toggle_menu(None, cx);
             }
