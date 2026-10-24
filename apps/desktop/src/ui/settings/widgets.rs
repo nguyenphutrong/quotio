@@ -7,10 +7,30 @@ use gpui_kit::component::menu::{DropdownMenu as _, PopupMenu, PopupMenuItem};
 use gpui_kit::{
     AnyElement, App, ClickEvent, Div, ElementId, FontWeight, InteractiveElement, IntoElement,
     ParentElement, SharedString, Stateful, StatefulInteractiveElement as _, Styled, Window, div,
-    prelude::FluentBuilder as _, px,
+    prelude::FluentBuilder as _, px, relative,
 };
 
 use crate::theme::Palette;
+
+/// How copy names the machine: "this Mac", "this PC" or "this computer".
+pub fn this_computer() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "this Mac"
+    } else if cfg!(windows) {
+        "this PC"
+    } else {
+        "this computer"
+    }
+}
+
+/// Where Quotio's icon lives: the macOS menu bar or the Windows/Linux tray.
+pub fn tray_name() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "menu bar"
+    } else {
+        "tray"
+    }
+}
 
 pub fn page(title: &str, subtitle: &str, p: &Palette) -> Div {
     page_with(title, subtitle, div(), p)
@@ -21,7 +41,7 @@ pub fn page_with(title: &str, subtitle: &str, trailing: impl IntoElement, p: &Pa
     div().flex().flex_col().gap(px(24.)).child(
         div()
             .flex()
-            .items_center()
+            .items_end()
             .gap(px(16.))
             .pb(px(20.))
             .border_b_1()
@@ -35,6 +55,7 @@ pub fn page_with(title: &str, subtitle: &str, trailing: impl IntoElement, p: &Pa
                     .child(
                         div()
                             .text_size(px(18.))
+                            .line_height(px(28.))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(p.text_strong)
                             .child(title.to_owned()),
@@ -80,6 +101,7 @@ pub fn section(
                 .child(
                     div()
                         .text_size(px(12.))
+                        .line_height(relative(1.5))
                         .text_color(p.text_sub)
                         .child(description.into()),
                 ),
@@ -127,7 +149,7 @@ pub fn row_with(
                 .flex_col()
                 .flex_1()
                 .min_w_0()
-                .gap(px(2.))
+                .gap(px(4.))
                 .child(
                     div()
                         .text_size(px(14.))
@@ -141,7 +163,7 @@ pub fn row_with(
         .into_any_element()
 }
 
-/// 36×20 switch. A disabled toggle is dimmed and ignores clicks.
+/// 36×20 switch. A disabled toggle keeps its colors and ignores clicks.
 pub fn toggle(
     id: impl Into<ElementId>,
     on: bool,
@@ -163,7 +185,7 @@ pub fn toggle(
                 s.cursor_pointer()
                     .on_click(move |_, window, cx| on_change(&!on, window, cx))
             } else {
-                s.opacity(0.5)
+                s.cursor_not_allowed()
             }
         })
         .child(
@@ -229,6 +251,8 @@ pub fn select<T: Clone + PartialEq + 'static>(
     Button::new(SharedString::from(id.to_owned()))
         .outline()
         .w(px(180.))
+        .h(px(36.))
+        .rounded(px(10.))
         .label(label)
         .dropdown_caret(true)
         .disabled(!enabled)

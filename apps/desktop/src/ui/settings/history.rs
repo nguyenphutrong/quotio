@@ -172,7 +172,11 @@ impl QuotaHistory {
                 if catalog["recording_enabled"] == true {
                     "No history yet. Quotio records quota each time it refreshes."
                 } else {
-                    "Quota history is off. Turn it on in Tray settings."
+                    if cfg!(target_os = "macos") {
+                        "Quota history is off. Turn it on in Menu Bar settings."
+                    } else {
+                        "Quota history is off. Turn it on in Tray settings."
+                    }
                 },
                 p,
             );

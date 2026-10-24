@@ -244,7 +244,7 @@ impl QuotaMenu {
         let p = palette(cx).clone();
         let shortcut = |key: &str| {
             if cfg!(target_os = "macos") {
-                format!("⌘{key}")
+                format!("⌘{}", key.to_uppercase())
             } else {
                 format!("Ctrl+{}", key.to_uppercase())
             }
@@ -335,7 +335,7 @@ impl Render for QuotaMenu {
             .on_key_down(cx.listener(Self::on_key_down))
             .size_full()
             .font_family(FONT_FAMILY)
-            .line_height(relative(1.25))
+            .line_height(relative(1.45))
             .child(
                 div()
                     .flex()

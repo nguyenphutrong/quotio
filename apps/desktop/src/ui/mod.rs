@@ -127,7 +127,7 @@ pub fn button_with_icon(
 ) -> Stateful<Div> {
     let color = match kind {
         ButtonKind::Primary => p.on_strong,
-        ButtonKind::Secondary => p.text_sub,
+        ButtonKind::Secondary => p.text_strong,
         ButtonKind::Danger => gpui_kit::white(),
     };
     button_base(id, kind, p)
@@ -139,7 +139,7 @@ pub fn button_with_icon(
 fn button_base(id: impl Into<ElementId>, kind: ButtonKind, p: &Palette) -> Stateful<Div> {
     let (bg, fg) = match kind {
         ButtonKind::Primary => (p.text_strong, p.on_strong),
-        ButtonKind::Secondary => (p.bg_white, p.text_sub),
+        ButtonKind::Secondary => (p.bg_white, p.text_strong),
         ButtonKind::Danger => (p.error, gpui_kit::white()),
     };
     div()

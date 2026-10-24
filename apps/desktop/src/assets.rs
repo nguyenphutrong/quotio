@@ -13,8 +13,27 @@ pub struct AppFiles;
 icon_assets!(
     ExtraIcons,
     [
-        Clock, Pin, Smartphone, Power, LayoutGrid, ChartLine, Users, Shield, AppWindow, CirclePlus,
-        KeyRound, PanelTop, Pencil, Trash, Monitor, ScanSearch
+        Clock,
+        Pin,
+        Smartphone,
+        Power,
+        LayoutGrid,
+        ChartLine,
+        Users,
+        Shield,
+        AppWindow,
+        CirclePlus,
+        KeyRound,
+        PanelTop,
+        Pencil,
+        Trash,
+        Monitor,
+        Wifi,
+        ShieldUser,
+        Tablet,
+        Lock,
+        ArrowUpRight,
+        Timer
     ]
 );
 

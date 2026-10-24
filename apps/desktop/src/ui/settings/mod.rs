@@ -72,7 +72,7 @@ impl Page {
             Page::General => IconName::Settings,
             Page::MenuBar => IconName::PanelTop,
             Page::Notifications => IconName::Bell,
-            Page::Privacy => IconName::Shield,
+            Page::Privacy => IconName::ShieldUser,
             Page::About => IconName::Info,
         }
     }
@@ -362,7 +362,7 @@ impl Render for SettingsWindow {
             .gap(px(6.))
             .p(px(6.))
             .font_family(FONT_FAMILY)
-            .line_height(relative(1.38))
+            .line_height(relative(1.43))
             .bg(p.bg_weak)
             .child(self.sidebar(attention, cx))
             .child(
