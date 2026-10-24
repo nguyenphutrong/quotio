@@ -401,15 +401,9 @@ impl HostClient for LoopbackClient {
             Some(provider) => serde_json::json!({ "providers": [provider] }),
             None => serde_json::json!({}),
         };
-        let request = self
-            .http
-            .post(format!("{}/v2/refresh", self.base))
-            .bearer_auth(&*self.token)
-            .json(&body);
-        self.run(async move {
-            check(request.send().await?).await?;
-            Ok(())
-        })
+        // The host answers at once with an operation; wait until providers are done.
+        let done = self.mutate(Method::POST, "/v2/refresh".into(), Some(body));
+        async move { done.await.map(drop) }.boxed()
     }
 }
 

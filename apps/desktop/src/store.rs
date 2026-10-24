@@ -173,16 +173,11 @@ impl QuotaStore {
         let request = self.host.refresh(provider);
         cx.spawn(async move |this, cx| {
             let requested = request.await;
-            for delay in [1, 3, 6] {
-                cx.background_executor()
-                    .timer(Duration::from_secs(delay))
-                    .await;
-                let Ok(fetch) = this.update(cx, |this, _| this.host.snapshot()) else {
-                    return;
-                };
-                let result = fetch.await;
-                let _ = this.update(cx, |this, cx| this.apply(result, cx));
-            }
+            let Ok(fetch) = this.update(cx, |this, _| this.host.snapshot()) else {
+                return;
+            };
+            let result = fetch.await;
+            let _ = this.update(cx, |this, cx| this.apply(result, cx));
             let _ = this.update(cx, |this, cx| {
                 this.refreshing = false;
                 if let Err(error) = requested {
