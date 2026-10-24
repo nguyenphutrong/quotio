@@ -18,13 +18,15 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 use super::SettingsWindow;
-use super::widgets::{page_with, rows, section, toggle};
+use super::widgets::{page_with, rows, section, this_computer, toggle};
 use crate::host::Method;
 use crate::prefs;
 use crate::sharing::{self, Mode};
 use crate::store::QuotaStore;
 use crate::theme::{Palette, palette};
-use crate::ui::{ButtonKind, button, dialog_footer, field, icon, note, text_field};
+use crate::ui::{
+    ButtonKind, button, button_with_icon, dialog_footer, field, icon, note, text_field,
+};
 
 impl SettingsWindow {
     /// Read the open connections and the paired devices.
@@ -44,18 +46,23 @@ impl SettingsWindow {
 
     pub(super) fn iphone_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = palette(cx).clone();
-        let computer = if cfg!(windows) {
-            "this PC"
-        } else {
-            "this computer"
-        };
+        let computer = this_computer();
         let view = self.sharing.clone().unwrap_or(Value::Null);
         let open: Vec<Mode> = Mode::ALL
             .into_iter()
             .filter(|m| sharing::endpoint(&view, *m).is_some())
             .collect();
 
-        let pair = button("pair", "Pair iPhone", ButtonKind::Primary, &p).map(|s| {
+        let pair = button_with_icon(
+            "pair",
+            IconName::Plus,
+            "Pair iPhone",
+            ButtonKind::Primary,
+            &p,
+        )
+        .h(px(36.))
+        .px(px(14.))
+        .map(|s| {
             if open.is_empty() {
                 s.opacity(0.5)
             } else {
@@ -79,7 +86,7 @@ impl SettingsWindow {
                 .items_center()
                 .gap(px(6.))
                 .cursor_pointer()
-                .text_size(px(13.))
+                .text_size(px(14.))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(p.text_sub)
                 .child(icon(
@@ -88,7 +95,7 @@ impl SettingsWindow {
                     } else {
                         IconName::ChevronRight
                     },
-                    14.,
+                    16.,
                     p.text_sub,
                 ))
                 .child("Advanced · custom HTTPS proxy, port")
@@ -112,9 +119,11 @@ impl SettingsWindow {
                     .py(px(12.))
                     .into_any_element()
             }
-            Some(list) => {
-                rows(list.iter().map(|d| self.device_row(d, &p, cx)), &p).into_any_element()
-            }
+            Some(list) => rows(list.iter().map(|d| self.device_row(d, &p, cx)), &p)
+                .rounded(px(16.))
+                .border_1()
+                .border_color(p.stroke_soft)
+                .into_any_element(),
         };
 
         page_with(
@@ -134,12 +143,18 @@ impl SettingsWindow {
         .child(section(
             "Paired devices",
             "Each device can only read quota. Access lasts 30 days, or until you revoke it.",
-            div().flex().flex_col().child(devices).child(
-                note(
-                    format!("Keep Quotio running and {computer} awake so your iPhone can refresh."),
-                    p.text_soft,
-                )
-                .pt(px(8.)),
+            div().flex().flex_col().gap(px(12.)).child(devices).child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .child(icon(IconName::Info, 14., p.text_soft))
+                    .child(note(
+                        format!(
+                            "Keep Quotio running and {computer} awake so your iPhone can refresh."
+                        ),
+                        p.text_soft,
+                    )),
             ),
             &p,
         ))
@@ -157,17 +172,15 @@ impl SettingsWindow {
         let endpoint = sharing::endpoint(view, mode);
         let busy = self.sharing_busy == Some(mode);
         let glyph = match mode {
-            Mode::LocalNetwork => IconName::Network,
-            Mode::Tailscale => IconName::Globe,
+            Mode::LocalNetwork => IconName::Wifi,
+            Mode::Tailscale => IconName::ShieldUser,
             Mode::Proxy => IconName::Shield,
         };
         let id = SharedString::from(format!("share-{mode:?}"));
         div()
             .flex()
             .flex_col()
-            .gap(px(12.))
-            .p(px(14.))
-            .rounded(px(14.))
+            .rounded(px(16.))
             .border_1()
             .border_color(p.stroke_soft)
             .when(busy, |s| s.opacity(0.6))
@@ -176,7 +189,9 @@ impl SettingsWindow {
                     .flex()
                     .items_center()
                     .gap(px(12.))
-                    .child(icon_tile(glyph, p))
+                    .px(px(16.))
+                    .py(px(12.))
+                    .child(icon_tile(glyph, endpoint.is_some(), p))
                     .child(
                         div()
                             .flex()
@@ -299,16 +314,23 @@ impl SettingsWindow {
     fn device_row(&self, device: &Value, p: &Palette, cx: &mut Context<Self>) -> AnyElement {
         let id = device["id"].as_str().unwrap_or_default().to_owned();
         let label = device["label"].as_str().unwrap_or("Device").to_owned();
-        let meta = device["expires_at"]
+        let expires = device["expires_at"]
             .as_str()
-            .and_then(|at| OffsetDateTime::parse(at, &Rfc3339).ok())
-            .map_or_else(String::new, expiry);
+            .and_then(|at| OffsetDateTime::parse(at, &Rfc3339).ok());
+        let soon = expires.is_some_and(|at| (at - OffsetDateTime::now_utc()).whole_days() < 7);
+        let meta = expires.map_or_else(String::new, expiry);
+        let glyph = if label.to_lowercase().contains("ipad") {
+            IconName::Tablet
+        } else {
+            IconName::Smartphone
+        };
         div()
             .flex()
             .items_center()
             .gap(px(12.))
+            .px(px(16.))
             .py(px(12.))
-            .child(icon_tile(IconName::Smartphone, p))
+            .child(icon_tile(glyph, false, p))
             .child(
                 div()
                     .flex()
@@ -322,15 +344,26 @@ impl SettingsWindow {
                             .text_color(p.text_strong)
                             .child(label.clone()),
                     )
-                    .child(div().text_size(px(12.)).text_color(p.text_sub).child(meta)),
+                    .child(
+                        div()
+                            .text_size(px(12.))
+                            .text_color(if soon { p.away } else { p.text_sub })
+                            .child(meta),
+                    ),
             )
             .child(
+                // Quieter than the shared Secondary button: red label, hairline border.
                 button(
                     SharedString::from(format!("revoke-{id}")),
                     "Revoke",
                     ButtonKind::Secondary,
                     p,
                 )
+                .shadow(Vec::new())
+                .rounded(px(9.))
+                .border_1()
+                .border_color(p.stroke_soft)
+                .text_color(p.error)
                 .on_click(cx.listener(move |this, _, window, cx| {
                     this.confirm_revoke(id.clone(), label.clone(), window, cx)
                 })),
@@ -441,24 +474,37 @@ fn address_row(mode: Mode, endpoint: &Value, view: &Value, p: &Palette) -> impl 
     div()
         .flex()
         .items_center()
-        .gap(px(10.))
-        .px(px(12.))
-        .py(px(8.))
-        .rounded(px(10.))
+        .gap(px(12.))
+        .px(px(16.))
+        .py(px(10.))
+        .rounded_b(px(16.))
+        .border_t_1()
+        .border_color(p.stroke_soft)
         .bg(p.bg_weak)
-        .text_size(px(13.))
-        .child(div().text_color(p.text_soft).child("Address"))
+        .child(
+            div()
+                .text_size(px(12.))
+                .text_color(p.text_soft)
+                .child("Address"),
+        )
         .child(
             div()
                 .flex_1()
                 .min_w_0()
                 .truncate()
-                .font_weight(FontWeight::MEDIUM)
+                .font_family(if cfg!(target_os = "macos") {
+                    "Menlo"
+                } else if cfg!(windows) {
+                    "Consolas"
+                } else {
+                    "monospace"
+                })
+                .text_size(px(14.))
                 .text_color(p.text_strong)
                 .child(url),
         )
         .when_some(interface, |s, name| {
-            s.child(div().text_color(p.text_soft).child(name))
+            s.child(div().text_size(px(12.)).text_color(p.text_soft).child(name))
         })
         .child(
             div()
@@ -478,7 +524,13 @@ fn address_row(mode: Mode, endpoint: &Value, view: &Value, p: &Palette) -> impl 
         )
 }
 
-fn icon_tile(glyph: IconName, p: &Palette) -> impl IntoElement {
+/// Primary-tinted while its connection is on, grey otherwise.
+fn icon_tile(glyph: IconName, on: bool, p: &Palette) -> impl IntoElement {
+    let (bg, fg) = if on {
+        (p.primary.opacity(0.1), p.primary)
+    } else {
+        (p.bg_weak, p.text_sub)
+    };
     div()
         .size(px(32.))
         .flex_none()
@@ -486,8 +538,8 @@ fn icon_tile(glyph: IconName, p: &Palette) -> impl IntoElement {
         .items_center()
         .justify_center()
         .rounded(px(10.))
-        .bg(p.bg_weak)
-        .child(icon(glyph, 16., p.text_sub))
+        .bg(bg)
+        .child(icon(glyph, 16., fg))
 }
 
 /// `Expires Nov 9`, or a nudge to pair again when access is about to end.
