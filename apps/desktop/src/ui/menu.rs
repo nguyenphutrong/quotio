@@ -26,6 +26,8 @@ impl QuotaMenu {
     pub fn new(store: Entity<QuotaStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
+        // The system may have switched theme while no window was open to hear it.
+        crate::theme::system_changed(window.appearance(), cx);
         let subscriptions = vec![
             cx.observe(&store, |_, _, cx| cx.notify()),
             cx.observe_window_appearance(window, |_, window, cx| {

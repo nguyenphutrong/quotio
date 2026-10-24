@@ -109,6 +109,8 @@ pub struct SettingsWindow {
 
 impl SettingsWindow {
     pub fn new(store: Entity<QuotaStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        // The system may have switched theme while no window was open to hear it.
+        crate::theme::system_changed(window.appearance(), cx);
         let catalog = connect::load_catalog(store.read(cx).host());
         cx.spawn(async move |this, cx| {
             if let Ok(catalog) = catalog.await {
