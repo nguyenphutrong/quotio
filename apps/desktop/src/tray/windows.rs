@@ -40,10 +40,8 @@ impl Tray {
             {
                 // Anchor at the top centre of the icon; the popup opens above the taskbar.
                 let x = rect.position.x + rect.size.width as f64 / 2.;
-                let _ = clicks.unbounded_send(TrayEvent::Activate(Some((
-                    x as i32,
-                    rect.position.y as i32,
-                ))));
+                let (x, y) = logical(x, rect.position.y);
+                let _ = clicks.unbounded_send(TrayEvent::Activate(Some((x as i32, y as i32))));
             }
         }));
         MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
@@ -73,4 +71,24 @@ impl Tray {
         }
         let _ = self.icon.set_tooltip(Some(tooltip));
     }
+}
+
+/// tray-icon reports physical pixels; GPUI places windows in logical pixels,
+/// each display divided by its own scale.
+fn logical(x: f64, y: f64) -> (f64, f64) {
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::Graphics::Gdi::{MONITOR_DEFAULTTONEAREST, MonitorFromPoint};
+    use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
+    let point = POINT {
+        x: x as i32,
+        y: y as i32,
+    };
+    let (mut dpi, mut _dpi_y) = (96u32, 96u32);
+    // SAFETY: plain Win32 calls with valid out-pointers.
+    let ok = unsafe {
+        let monitor = MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
+        GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi, &mut _dpi_y) == 0
+    };
+    let scale = if ok { dpi as f64 / 96. } else { 1. };
+    (x / scale, y / scale)
 }

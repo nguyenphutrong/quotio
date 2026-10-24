@@ -32,3 +32,4 @@ x11rb = "0.13"
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = "0.26"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_HiDpi"] }
