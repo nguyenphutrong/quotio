@@ -861,6 +861,7 @@ impl SettingsWindow {
                 self.run(account, "grant access", work, window, cx);
             }
             Fix::SignIn => self.connect(Some(&account.provider_id), window, cx),
+            Fix::ReplaceKey => self.replace_key(account, window, cx),
         }
     }
 

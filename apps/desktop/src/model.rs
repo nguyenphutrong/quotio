@@ -62,6 +62,8 @@ pub enum Fix {
     UnlockVault,
     /// Refresh the account.
     Retry,
+    /// Enter a new API key for the account.
+    ReplaceKey,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -216,6 +218,20 @@ fn account_view(
         .filter(|s| allowed(&s.actions, "replace_api_key"))
         .map(|s| s.id.as_str())
         .collect();
+    let key_source = match key_sources[..] {
+        [only] => Some(only.to_owned()),
+        _ => None,
+    };
+    // Signing in again would add a second account; a rejected key is replaced.
+    let issue = issue.map(|issue| match issue.fix {
+        Fix::SignIn if key_source.is_some() => IssueView {
+            title: "API key rejected".into(),
+            action: "Replace key".into(),
+            fix: Fix::ReplaceKey,
+            ..issue
+        },
+        _ => issue,
+    });
     AccountView {
         id: account.id.clone(),
         provider_id: account.provider_id.clone(),
@@ -229,10 +245,7 @@ fn account_view(
             set_enabled: allowed(&account.actions, "set_enabled"),
             remove: allowed(&account.actions, "remove"),
         },
-        key_source: match key_sources[..] {
-            [only] => Some(only.to_owned()),
-            _ => None,
-        },
+        key_source,
         updated: usage
             .and_then(|u| u.fetched_at)
             .map(|at| compact_ago(now - at)),
