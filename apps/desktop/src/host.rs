@@ -104,6 +104,10 @@ pub struct EmbeddedHost {
 
 impl EmbeddedHost {
     pub fn start(options: HostOptions) -> Result<Self> {
+        #[cfg(target_os = "linux")]
+        if !options.demo {
+            provide_vault_key()?;
+        }
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .thread_name("quotio-host")
@@ -215,6 +219,56 @@ fn account_data_dir() -> Result<PathBuf> {
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
     builder.create(&dir)?;
     Ok(dir)
+}
+
+/// The Linux vault is AES-encrypted with a key the host reads from
+/// `QUOTIO_VAULT_KEY_FILE`. Without one it stays locked, so the app keeps its own
+/// key in the config directory, apart from the vault, unless the user set one.
+/// ponytail: key file beside the user's data; store it in Secret Service if that matters.
+#[cfg(target_os = "linux")]
+fn provide_vault_key() -> Result<()> {
+    use ring::rand::{SecureRandom, SystemRandom};
+    use std::io::Write as _;
+    use std::os::unix::fs::{DirBuilderExt as _, OpenOptionsExt as _};
+    if std::env::var_os("QUOTIO_VAULT_KEY_FILE").is_some()
+        || std::env::var_os("QUOTIO_VAULT_KEY_FD").is_some()
+    {
+        return Ok(());
+    }
+    let dir = project_dirs()?.config_dir().to_owned();
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&dir)?;
+    let path = dir.join("vault.key");
+    if !path.exists() {
+        // Write the whole key aside, then link it in: a crash never leaves a short
+        // key, and a key that already exists is never replaced.
+        let temp = dir.join(format!("vault.key.{}", std::process::id()));
+        let _ = std::fs::remove_file(&temp);
+        let mut key = [0u8; 32];
+        SystemRandom::new()
+            .fill(&mut key)
+            .map_err(|_| anyhow!("no secure random source"))?;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&temp)?;
+        file.write_all(&key)?;
+        file.sync_all()?;
+        let linked = std::fs::hard_link(&temp, &path);
+        std::fs::remove_file(&temp)?;
+        match linked {
+            Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => {
+                return Err(error).context("could not create the vault key");
+            }
+            _ => {}
+        }
+    }
+    // SAFETY: called from `EmbeddedHost::start` before it starts any thread.
+    unsafe { std::env::set_var("QUOTIO_VAULT_KEY_FILE", &path) };
+    Ok(())
 }
 
 fn random_token() -> Result<String> {
