@@ -119,6 +119,8 @@ fn menu_bounds(anchor: Option<Point<Pixels>>, height: f32, cx: &App) -> Bounds<P
     };
     let area = display.bounds();
     let gap = px(MENU_GAP);
+    // A tall list on a short display scrolls instead; `clamp` panics if it can't fit.
+    let height = height.min(area.size.height - gap * 2.);
     let anchor = anchor.unwrap_or_else(|| {
         if cfg!(windows) {
             point(area.right() - width / 2. - gap, area.bottom() - px(48.))
