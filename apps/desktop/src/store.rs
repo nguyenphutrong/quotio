@@ -78,6 +78,14 @@ impl QuotaStore {
     ) {
         match result {
             Ok(snapshot) => {
+                // Polls, reloads and refreshes overlap; a late answer must not undo a newer one.
+                if self
+                    .snapshot
+                    .as_ref()
+                    .is_some_and(|current| snapshot.revision < current.revision)
+                {
+                    return;
+                }
                 self.snapshot = Some(snapshot);
                 self.rebuild(cx);
                 self.error = None;
