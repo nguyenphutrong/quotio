@@ -11,7 +11,7 @@ use gpui_kit::component::{Sizable as _, WindowExt as _};
 use gpui_kit::{
     Anchor, AnyElement, App, AppContext as _, Context, Entity, Focusable as _, FontWeight,
     InteractiveElement, IntoElement, ParentElement, SharedString, StatefulInteractiveElement,
-    Styled, Window, div, prelude::FluentBuilder as _, px,
+    Styled, Window, div, prelude::FluentBuilder as _, px, rgb,
 };
 use serde_json::{Value, json};
 
@@ -130,6 +130,7 @@ impl SettingsWindow {
             .map(|(_, account, issue)| {
                 let fix_id = SharedString::from(format!("fix-{}", account.id));
                 let target = account.clone();
+                let access = matches!(issue.fix, Fix::Authorize(_) | Fix::UnlockVault);
                 div()
                     .flex()
                     .items_center()
@@ -147,8 +148,13 @@ impl SettingsWindow {
                             .items_center()
                             .justify_center()
                             .rounded(px(8.))
-                            .bg(p.error_alpha)
-                            .child(icon(IconName::CircleAlert, 16., p.error)),
+                            .map(|s| {
+                                if access {
+                                    s.bg(p.bg_weak).child(icon(IconName::Lock, 16., p.text_sub))
+                                } else {
+                                    s.bg(p.error_alpha).child(alert_dot(p.error))
+                                }
+                            }),
                     )
                     .child(
                         div()
@@ -175,11 +181,20 @@ impl SettingsWindow {
                             ),
                     )
                     .child(
-                        button(fix_id, issue.action.clone(), ButtonKind::Primary, &p)
-                            .when(self.busy.contains(&account.id), |s| s.opacity(0.5))
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.fix(&target, window, cx)
-                            })),
+                        button(
+                            fix_id,
+                            issue.action.clone(),
+                            if issue.fix == Fix::Retry {
+                                ButtonKind::Secondary
+                            } else {
+                                ButtonKind::Primary
+                            },
+                            &p,
+                        )
+                        .when(self.busy.contains(&account.id), |s| s.opacity(0.5))
+                        .on_click(
+                            cx.listener(move |this, _, window, cx| this.fix(&target, window, cx)),
+                        ),
                     )
                     .into_any_element()
             })
@@ -214,7 +229,7 @@ impl SettingsWindow {
                                 .text_size(px(12.))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(p.text_sub)
-                                .child(icon(IconName::TriangleAlert, 16., p.away))
+                                .child(alert_dot(p.away))
                                 .child(match attention_count {
                                     1 => "1 thing needs your attention".to_owned(),
                                     n => format!("{n} things need your attention"),
@@ -286,7 +301,12 @@ impl SettingsWindow {
     }
 
     /// Open the add-account dialog, at `provider` when given.
-    fn connect(&mut self, provider: Option<&str>, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn connect(
+        &mut self,
+        provider: Option<&str>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let catalog = self.catalog.clone();
         let store = self.store.clone();
         let flow = cx.new(|cx| ConnectFlow::new(store, catalog, provider, window, cx));
@@ -417,6 +437,7 @@ impl SettingsWindow {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let count = group.accounts.len();
+        let provider = group.provider_id.clone();
         div()
             .flex()
             .flex_col()
@@ -427,7 +448,12 @@ impl SettingsWindow {
                     .items_center()
                     .gap(px(8.))
                     .px(px(4.))
-                    .child(provider_logo(&group.provider_id, 18., None, p))
+                    .child(provider_logo(
+                        &group.provider_id,
+                        18.,
+                        providers::tint(&group.provider_id),
+                        p,
+                    ))
                     .child(
                         div()
                             .text_size(px(14.))
@@ -441,6 +467,18 @@ impl SettingsWindow {
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(p.text_soft)
                             .child(count.to_string()),
+                    )
+                    .child(div().flex_1())
+                    .child(
+                        div()
+                            .id(SharedString::from(format!("refresh-{provider}")))
+                            .cursor_pointer()
+                            .child(icon(IconName::RefreshCw, 16., p.text_soft))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                let provider = provider.clone();
+                                this.store
+                                    .update(cx, |store, cx| store.refresh(Some(provider), cx));
+                            })),
                     ),
             )
             .child(
@@ -568,7 +606,7 @@ impl SettingsWindow {
                     .rounded(px(10.))
                     .bg(p.error_alpha)
                     .text_size(px(12.))
-                    .child(icon(IconName::CircleAlert, 16., p.error).flex_none())
+                    .child(alert_dot(p.error))
                     .child(
                         div()
                             .flex_1()
@@ -658,7 +696,7 @@ impl SettingsWindow {
         Button::new(SharedString::from(format!("menu-{}", account.id)))
             .ghost()
             .xsmall()
-            .icon(IconName::Ellipsis)
+            .icon(IconName::EllipsisVertical)
             .dropdown_menu_with_anchor(Anchor::TopRight, move |menu, _, _| {
                 let menu = menu.min_w(px(180.));
                 let item = |label: &'static str, glyph: IconName, action: Action| {
@@ -1132,4 +1170,20 @@ fn metric_column(metric: &MetricView, p: &Palette) -> impl IntoElement {
                     .child(reset),
             )
         })
+}
+
+/// Filled circle with "!", which Lucide doesn't draw.
+fn alert_dot(color: gpui_kit::Hsla) -> impl IntoElement {
+    div()
+        .size(px(16.))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded_full()
+        .bg(color)
+        .text_size(px(11.))
+        .font_weight(FontWeight::BOLD)
+        .text_color(rgb(0xffffff))
+        .child("!")
 }

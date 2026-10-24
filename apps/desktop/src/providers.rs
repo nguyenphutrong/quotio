@@ -1,4 +1,6 @@
 //! Provider names and logos. Logo files mirror `apps/macos/Quotio/Assets.xcassets/ProviderIcons`.
+use gpui_kit::{Hsla, rgb};
+
 use crate::assets::AppFiles;
 
 pub fn display_name(provider_id: &str) -> String {
@@ -29,6 +31,15 @@ pub fn display_name(provider_id: &str) -> String {
         }
     };
     name.to_owned()
+}
+
+/// Brand color for logos in group headers; `None` keeps the text color.
+pub fn tint(provider_id: &str) -> Option<Hsla> {
+    match provider_id {
+        "claude" => Some(rgb(0xd97757).into()),
+        "gemini" | "antigravity" => Some(rgb(0x335cff).into()),
+        _ => None,
+    }
 }
 
 /// Asset path of the provider's logo, matching the macOS `logoAssetName` mapping.

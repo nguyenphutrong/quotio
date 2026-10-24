@@ -35,12 +35,12 @@ pub struct MetricView {
     /// user shows percentages as used.
     pub fill: Option<f32>,
     pub tone: Tone,
-    /// Compact reset, such as `1h 42m` or `Mon 09:00`.
+    /// Compact reset, such as `1h 42m`, `Mon 09:00`, or `at 07:00` for a daily window.
     pub reset: Option<String>,
 }
 
 impl MetricView {
-    /// Sentence form for wide layouts: `Resets in 1h 42m` or `Resets Mon 09:00`.
+    /// Sentence form for wide layouts: `Resets in 1h 42m`, `Resets Mon 09:00` or `Resets at 07:00`.
     pub fn reset_sentence(&self) -> Option<String> {
         let reset = self.reset.as_deref()?;
         Some(if reset.starts_with(|c: char| c.is_ascii_digit()) {
@@ -311,13 +311,19 @@ fn issue(account: &Account, usage: Option<&Usage>, now: OffsetDateTime) -> Optio
         }),
         ConnectionState::NeedsAuthorization => Some(match source_fix("authorize") {
             Some(source) => IssueView {
-                title: "Allow access to this login".into(),
+                title: format!(
+                    "Allow access to the {} login",
+                    providers::display_name(&account.provider_id)
+                ),
                 detail: "Quotio found this login but can’t read it yet.".into(),
                 action: "Grant access".into(),
                 fix: Fix::Authorize(source),
             },
             None => IssueView {
-                title: "Allow access to this login".into(),
+                title: format!(
+                    "Allow access to the {} login",
+                    providers::display_name(&account.provider_id)
+                ),
                 detail: "Quotio found this login but can’t read it yet.".into(),
                 action: "Retry".into(),
                 fix: Fix::Retry,
@@ -362,7 +368,14 @@ fn metric_view(metric: &Metric, now: OffsetDateTime, offset: UtcOffset, used: bo
     };
     let reset = metric
         .resets_at
-        .map(|at| compact_reset(at, now, offset))
+        .map(|at| match metric.window_seconds {
+            // A daily window resets at the same time every day.
+            Some(86_400) if at > now => {
+                let local = at.to_offset(offset);
+                format!("at {:02}:{:02}", local.hour(), local.minute())
+            }
+            _ => compact_reset(at, now, offset),
+        })
         .or_else(|| metric.reset_description.clone());
     MetricView {
         label: metric.display_name.clone(),
