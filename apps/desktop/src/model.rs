@@ -313,7 +313,11 @@ fn issue(account: &Account, usage: Option<&Usage>, now: OffsetDateTime) -> Optio
         ConnectionState::Disabled => None,
         ConnectionState::Unavailable => Some(refresh_failed(usage.and_then(|u| u.fetched_at))),
         _ => match usage {
-            Some(u) if u.freshness == Freshness::Unavailable && u.issue.is_some() => {
+            // A failed refresh keeps the last quota as `Stale`; don't present it as current.
+            Some(u)
+                if matches!(u.freshness, Freshness::Unavailable | Freshness::Stale)
+                    && u.issue.is_some() =>
+            {
                 Some(refresh_failed(u.fetched_at))
             }
             _ => None,
