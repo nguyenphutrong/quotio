@@ -26,12 +26,15 @@ impl SettingsWindow {
             "this computer"
         };
 
+        let store = self.store.clone();
         let hide_row = row(
             "Hide account names",
             Some("Names and emails are masked everywhere. Click one on the Accounts page to show it for a moment.".into()),
-            toggle("hide-names", hide, true, &p, |on, _, cx| {
+            toggle("hide-names", hide, true, &p, move |on, _, cx| {
                 let on = *on;
                 prefs::update(cx, |prefs| prefs.hide_names = on);
+                // The tray tooltip follows the store, not the windows.
+                store.update(cx, |_, cx| cx.notify());
                 cx.refresh_windows();
             }),
             &p,
