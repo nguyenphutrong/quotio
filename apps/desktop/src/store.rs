@@ -109,9 +109,25 @@ impl QuotaStore {
             return;
         };
         let now = self.now();
-        let used = prefs::get(cx).quota_display == QuotaDisplay::Used;
-        self.overview = Some(model::overview(snapshot, now, self.offset, false, used));
-        self.all = Some(model::overview(snapshot, now, self.offset, true, used));
+        let prefs = prefs::get(cx);
+        let (used, total_usage, aggregation) = (
+            prefs.quota_display == QuotaDisplay::Used,
+            prefs.total_usage,
+            prefs.model_aggregation,
+        );
+        let overview = |with_paused| {
+            model::overview(
+                snapshot,
+                now,
+                self.offset,
+                with_paused,
+                used,
+                total_usage,
+                aggregation,
+            )
+        };
+        self.overview = Some(overview(false));
+        self.all = Some(overview(true));
         cx.notify();
     }
 

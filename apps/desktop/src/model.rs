@@ -1,9 +1,11 @@
 //! Projects a host `/v2` snapshot into render-ready rows. Pure functions only, so the
 //! wording and thresholds are testable without a window.
+use quotio::contract::summary::Summary;
 use quotio::contract::{Account, Action, ConnectionState, Freshness, Metric, Snapshot, Usage};
 use quotio::domain::Quota;
 use time::{Duration, OffsetDateTime, UtcOffset};
 
+use crate::prefs::{ModelAggregation, TotalUsage};
 use crate::providers;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,6 +100,8 @@ pub struct AccountView {
     pub key_source: Option<String>,
     pub updated: Option<String>,
     pub metrics: Vec<MetricView>,
+    /// Overall remaining share in `0.0..=1.0`, per the usage calculation preferences.
+    pub total: Option<f32>,
     pub issue: Option<IssueView>,
 }
 
@@ -125,14 +129,13 @@ impl Overview {
         })
     }
 
-    /// Lowest remaining percentage across healthy accounts, for the tray gauge.
+    /// Lowest overall remaining share across healthy accounts, for the tray gauge.
     pub fn lowest_remaining(&self) -> Option<f32> {
         self.groups
             .iter()
             .flat_map(|group| &group.accounts)
             .filter(|account| account.issue.is_none())
-            .flat_map(|account| &account.metrics)
-            .filter_map(|metric| metric.remaining)
+            .filter_map(|account| account.total)
             .reduce(f32::min)
     }
 
@@ -181,6 +184,8 @@ pub fn overview(
     offset: UtcOffset,
     with_paused: bool,
     used: bool,
+    total_usage: TotalUsage,
+    aggregation: ModelAggregation,
 ) -> Overview {
     let mut groups: Vec<ProviderGroup> = Vec::new();
     let accounts: Vec<&Account> = snapshot
@@ -194,7 +199,16 @@ pub fn overview(
             .iter()
             .filter(|a| a.provider_id == account.provider_id)
             .count();
-        let view = account_view(account, usage, siblings > 1, now, offset, used);
+        let mut view = account_view(account, usage, siblings > 1, now, offset, used);
+        // As on macOS, an account without quota rows has no overall number.
+        if !view.metrics.is_empty() {
+            view.total = total(
+                usage.and_then(|u| u.summary.as_ref()),
+                &view.metrics,
+                total_usage,
+                aggregation,
+            );
+        }
         match groups
             .iter_mut()
             .find(|g| g.provider_id == account.provider_id)
@@ -273,8 +287,31 @@ fn account_view(
             .and_then(|u| u.fetched_at)
             .map(|at| compact_ago(now - at)),
         metrics,
+        total: None,
         issue,
     }
+}
+
+/// The host's summary total the preferences select, as a `0.0..=1.0` share. Hosts
+/// without a summary fall back to the lowest metric.
+fn total(
+    summary: Option<&Summary>,
+    metrics: &[MetricView],
+    total_usage: TotalUsage,
+    aggregation: ModelAggregation,
+) -> Option<f32> {
+    let Some(summary) = summary else {
+        return metrics.iter().filter_map(|m| m.remaining).reduce(f32::min);
+    };
+    let totals = match total_usage {
+        TotalUsage::SessionOnly => &summary.session_only,
+        TotalUsage::Combined => &summary.combined,
+    };
+    let percent = match aggregation {
+        ModelAggregation::Lowest => totals.lowest,
+        ModelAggregation::Average => totals.average,
+    }?;
+    Some((percent.clamp(0., 100.) / 100.) as f32)
 }
 
 fn issue(account: &Account, usage: Option<&Usage>, now: OffsetDateTime) -> Option<IssueView> {
@@ -471,5 +508,37 @@ pub fn ago_phrase(elapsed: Duration) -> String {
         format!("{} h ago", minutes / 60)
     } else {
         format!("{} d ago", minutes / (60 * 24))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quotio::contract::summary::Totals;
+
+    #[test]
+    fn total_follows_usage_calculation_preferences() {
+        let summary = Summary {
+            session_only: Totals {
+                lowest: Some(10.),
+                average: Some(40.),
+            },
+            combined: Totals {
+                lowest: Some(70.),
+                average: Some(90.),
+            },
+            pair: vec![],
+        };
+        for (usage, aggregation, expected) in [
+            (TotalUsage::SessionOnly, ModelAggregation::Lowest, 0.1),
+            (TotalUsage::SessionOnly, ModelAggregation::Average, 0.4),
+            (TotalUsage::Combined, ModelAggregation::Lowest, 0.7),
+            (TotalUsage::Combined, ModelAggregation::Average, 0.9),
+        ] {
+            assert_eq!(
+                total(Some(&summary), &[], usage, aggregation),
+                Some(expected)
+            );
+        }
     }
 }
