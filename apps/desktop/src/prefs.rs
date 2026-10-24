@@ -18,6 +18,71 @@ pub struct Prefs {
     /// Mask account names on screen, for screen sharing.
     pub hide_names: bool,
     pub sharing: crate::sharing::Prefs,
+    pub menu_bar: MenuBar,
+    pub density: Density,
+    pub total_usage: TotalUsage,
+    pub model_aggregation: ModelAggregation,
+}
+
+/// Menu bar status item, as in the macOS app. Windows and Linux trays show only the icon.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MenuBar {
+    pub show_icon: bool,
+    /// Pinned accounts' percentages next to the icon.
+    pub show_quota: bool,
+    /// Providers with a session and weekly limit share one two-line item.
+    pub stack_paired: bool,
+    /// 1..=10 pinned accounts.
+    pub max_items: u8,
+    /// Account ids pinned to the menu bar, in order.
+    pub accounts: Vec<String>,
+    /// Once the user pins or unpins, new accounts are no longer added automatically.
+    pub user_modified: bool,
+    /// macOS only. The Dock icon can be hidden only while the menu bar icon shows.
+    pub show_in_dock: bool,
+}
+
+impl Default for MenuBar {
+    fn default() -> Self {
+        Self {
+            show_icon: true,
+            show_quota: true,
+            stack_paired: true,
+            max_items: 3,
+            accounts: Vec::new(),
+            user_modified: false,
+            show_in_dock: true,
+        }
+    }
+}
+
+/// How much the popup shows per account.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Density {
+    Compact,
+    #[default]
+    Comfortable,
+    Detailed,
+}
+
+/// Whether an account's overall number counts only the session limit.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TotalUsage {
+    #[default]
+    SessionOnly,
+    Combined,
+}
+
+/// How per-model limits fold into one number.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelAggregation {
+    #[default]
+    Lowest,
+    Average,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

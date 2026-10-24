@@ -136,6 +136,29 @@ impl Overview {
             .reduce(f32::min)
     }
 
+    /// Accounts shown next to the menu bar icon: the pinned ones that still exist, or
+    /// the first `max_items` accounts until the user pins or unpins one.
+    pub fn menu_bar_accounts(
+        &self,
+        menu_bar: &crate::prefs::MenuBar,
+    ) -> Vec<(&ProviderGroup, &AccountView)> {
+        let all = self
+            .groups
+            .iter()
+            .flat_map(|group| group.accounts.iter().map(move |account| (group, account)));
+        let max = menu_bar.max_items.clamp(1, 10) as usize;
+        if menu_bar.user_modified {
+            menu_bar
+                .accounts
+                .iter()
+                .filter_map(|id| all.clone().find(|(_, account)| &account.id == id))
+                .take(max)
+                .collect()
+        } else {
+            all.take(max).collect()
+        }
+    }
+
     /// Status line under the app name: `4 accounts · updated 2 min ago`.
     pub fn status_line(&self) -> String {
         let count = match self.account_count {
