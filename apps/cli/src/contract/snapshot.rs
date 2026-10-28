@@ -438,6 +438,7 @@ fn metric_display_name<'a>(provider: &str, label: &'a str) -> &'a str {
                 "gemini-weekly" => "Weekly",
                 "3p-5h" | "3p-session" => "Claude Session",
                 "3p-weekly" => "Claude Weekly",
+                "gemini-argon-weekly" | "gemini-argon-wtu-weekly" => "Argon Weekly",
                 _ if bucket.eq_ignore_ascii_case("session") => {
                     if label.starts_with("Claude") {
                         "Claude Session"
@@ -800,8 +801,9 @@ mod tests {
                     "Claude and GPT models 3p-weekly",
                     "Gemini Models gemini-weekly",
                     "Gemini Models gemini-5h",
+                    "Gemini 4 Argon gemini-argon-wtu-weekly",
                 ],
-                vec!["Session", "Weekly", "Claude Weekly"],
+                vec!["Session", "Weekly", "Claude Weekly", "Argon Weekly"],
             ),
             (
                 "antigravity",
