@@ -199,6 +199,74 @@ impl SettingsWindow {
                     .into_any_element()
             })
             .collect();
+        // Logins discovery found but may not read yet, mostly Keychain items. The
+        // macOS app lists them as pending permissions.
+        let mut attention = attention;
+        let permissions = self
+            .discovery
+            .as_ref()
+            .and_then(|d| d["permissions"].as_array())
+            .cloned()
+            .unwrap_or_default();
+        for (index, source) in permissions.into_iter().enumerate() {
+            let name = providers::display_name(source["provider"].as_str().unwrap_or_default());
+            attention.push(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(12.))
+                    .px(px(12.))
+                    .py(px(10.))
+                    .rounded(px(12.))
+                    .bg(p.bg_white)
+                    .shadow(p.raised())
+                    .child(
+                        div()
+                            .size(px(32.))
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded(px(8.))
+                            .bg(p.bg_weak)
+                            .child(icon(IconName::Lock, 16., p.text_sub)),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .gap(px(2.))
+                            .child(
+                                div()
+                                    .text_size(px(14.))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(p.text_strong)
+                                    .child(format!("Allow access to the {name} login")),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(12.))
+                                    .text_color(p.text_sub)
+                                    .child(format!(
+                                        "Quotio found a {name} sign-in on this computer."
+                                    )),
+                            ),
+                    )
+                    .child(
+                        button(
+                            SharedString::from(format!("allow-{index}")),
+                            "Allow access",
+                            ButtonKind::Primary,
+                            &p,
+                        )
+                        .on_click(cx.listener(
+                            move |this, _, window, cx| this.allow_discovered(&source, window, cx),
+                        )),
+                    )
+                    .into_any_element(),
+            );
+        }
         let attention_count = attention.len();
         let vault_locked = store_vault_locked;
         let groups = overview.map(|o| filter(o, &query)).unwrap_or_default();
@@ -993,15 +1061,42 @@ impl SettingsWindow {
         let host = self.store.read(cx).host();
         Box::pin(async move {
             let source = snapshot_source.ok_or_else(|| anyhow::anyhow!("the login is gone"))?;
-            let body = json!({
+            let body = source_body(json!({
                 "kind": source.kind,
                 "location": source.location,
                 "entry_key": source.keychain_account,
                 "config_dir": source.directory,
-            });
+            }));
             host.mutate(Method::POST, "/v2/sources/authorize".into(), Some(body))
                 .await
         })
+    }
+
+    /// Read a login discovery reported as `permission_required`; macOS asks for
+    /// Keychain access, then the host adds the account.
+    fn allow_discovered(&mut self, source: &Value, window: &mut Window, cx: &mut Context<Self>) {
+        let host = self.store.read(cx).host();
+        let body = source_body(json!({
+            "kind": source["kind"],
+            "location": source["location"],
+            "entry_key": source["keychain_account"],
+        }));
+        cx.spawn_in(window, async move |this, cx| {
+            let result = host
+                .mutate(Method::POST, "/v2/sources/authorize".into(), Some(body))
+                .await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                this.store.update(cx, |store, cx| store.reload(cx));
+                this.load_host_settings(cx);
+                if let Err(error) = result {
+                    window.push_notification(
+                        Notification::error(format!("Couldn’t allow access: {error}")),
+                        cx,
+                    );
+                }
+            });
+        })
+        .detach();
     }
 
     fn rename(&mut self, account: &AccountView, window: &mut Window, cx: &mut Context<Self>) {
@@ -1252,6 +1347,14 @@ fn metric_column(metric: &MetricView, p: &Palette) -> impl IntoElement {
                     .child(reset),
             )
         })
+}
+
+/// The host rejects fields a source kind does not have, `null` included.
+fn source_body(mut body: Value) -> Value {
+    if let Some(fields) = body.as_object_mut() {
+        fields.retain(|_, value| !value.is_null());
+    }
+    body
 }
 
 /// Filled circle with "!", which Lucide doesn't draw.
