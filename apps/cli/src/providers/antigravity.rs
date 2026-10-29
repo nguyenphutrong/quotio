@@ -380,10 +380,11 @@ impl AntigravityProvider {
                 .header("Authorization", authorization.clone())
                 .header(
                     "User-Agent",
-                    if matches!(method, "loadCodeAssist" | "retrieveUserQuota") {
-                        "agy"
-                    } else {
-                        "antigravity"
+                    match method {
+                        // The summary response's quota coverage depends on client identity.
+                        "retrieveUserQuotaSummary" => "antigravity/hub/2.23.0 darwin/arm64",
+                        "loadCodeAssist" | "retrieveUserQuota" => "agy",
+                        _ => "antigravity",
                     },
                 )
                 .json(&payload)
@@ -635,6 +636,66 @@ mod tests {
             AntigravityProvider.token(&context),
             Err(ProviderError::Authentication)
         ));
+    }
+    #[tokio::test]
+    async fn hub_summary_request_preserves_all_quota_buckets() {
+        let (base, task) = http::fixture::server(vec![
+            json!({"id":"demo-id","email":"demo@example.invalid"}),
+            json!({"cloudaicompanionProject":"demo-project"}),
+            json!({"groups":[
+                {"displayName":"Gemini","buckets":[
+                    {"bucketId":"gemini-5h","window":"5h","remainingFraction":0.25,"resetTime":"2026-10-27T01:00:00Z"},
+                    {"bucketId":"gemini-weekly","window":"weekly","remainingFraction":0.5,"resetTime":"2026-11-01T00:00:00Z"}
+                ]},
+                {"displayName":"Third-party","buckets":[
+                    {"bucketId":"3p-5h","window":"5h","remainingFraction":0.75},
+                    {"bucketId":"3p-weekly","window":"weekly","remainingFraction":0.0}
+                ]},
+                {"displayName":"Argon","buckets":[
+                    {"bucketId":"gemini-argon-weekly","window":"weekly","remainingFraction":0.125}
+                ]}
+            ]}),
+        ])
+        .await;
+        let usage = AntigravityProvider
+            .fetch_api(
+                &http::fixture::context(),
+                &format!("{base}/v1internal:"),
+                &format!("{base}/userinfo"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(usage.windows.len(), 5);
+        for (window, (label, used)) in usage.windows.iter().zip([
+            ("Gemini gemini-5h", 75.0),
+            ("Gemini gemini-weekly", 50.0),
+            ("Third-party 3p-5h", 25.0),
+            ("Third-party 3p-weekly", 100.0),
+            ("Argon gemini-argon-weekly", 87.5),
+        ]) {
+            assert_eq!(window.label, label);
+            assert_eq!(window.quota, Quota::from_used(Some(used)));
+            assert_eq!(window.provenance.source, "antigravity_api_summary");
+        }
+        assert_eq!(
+            usage.windows[0].resets_at,
+            Some(OffsetDateTime::parse("2026-10-27T01:00:00Z", &Rfc3339).unwrap())
+        );
+        let requests = task.await.unwrap();
+        assert_eq!(requests.len(), 3);
+        assert!(
+            requests[1]
+                .to_ascii_lowercase()
+                .contains("user-agent: agy\r\n")
+        );
+        assert!(requests[2].starts_with("POST /v1internal:retrieveUserQuotaSummary "));
+        assert!(
+            requests[2]
+                .to_ascii_lowercase()
+                .contains("user-agent: antigravity/hub/2.23.0 darwin/arm64\r\n")
+        );
+        assert!(requests[2].contains("Bearer synthetic-token"));
+        assert!(requests[2].ends_with("{\"project\":\"demo-project\"}"));
     }
     #[tokio::test]
     async fn subscription_plan_is_optional_bounded_and_uses_existing_request() {
@@ -908,6 +969,16 @@ mod tests {
             "fetchAvailableModels",
         ]) {
             assert!(request.starts_with(&format!("POST /v1internal:{method} ")));
+            let user_agent = match method {
+                "retrieveUserQuotaSummary" => "antigravity/hub/2.23.0 darwin/arm64",
+                "loadCodeAssist" => "agy",
+                _ => "antigravity",
+            };
+            assert!(
+                request
+                    .to_ascii_lowercase()
+                    .contains(&format!("user-agent: {user_agent}\r\n"))
+            );
         }
         assert!(
             requests

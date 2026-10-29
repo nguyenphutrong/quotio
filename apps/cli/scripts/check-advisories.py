@@ -8,10 +8,12 @@ import tomllib
 import urllib.error
 import urllib.request
 
-# Reviewed advisories, by exact package, version and ID. A lockfile bump drops the exception.
+# Exact (package, version, advisory) matches only; a version change re-enables the check.
 ACCEPTED = {
-    # Needs a panicking callback whose panic is caught; tern-sdk 0.1.0 only calls
-    # Sha256::digest. Remove when tern-sdk moves to sha2 0.11.
+    # tern-sdk 0.1.0 pins sha2 0.10 -> digest 0.10 -> block-buffer 0.10; the fix needs
+    # block-buffer 0.12.1. The bug requires a panicking compress callback that is caught
+    # and the buffer reused; sha2's SHA-256 compression does not panic. Remove when
+    # tern-sdk moves to sha2 0.11.
     ("block-buffer", "0.10.4", "GHSA-qwgh-2vcv-g2f7"),
 }
 

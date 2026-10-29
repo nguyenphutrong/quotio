@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Show every Antigravity quota window again. Accounts were only showing their Claude and GPT limits; Gemini session and weekly limits and the Gemini 4 Argon weekly limit (shown as "Argon Weekly") now appear too.
+
 ## [1.0.0-beta.10] - 2026-10-20
 
 ### Fixed
