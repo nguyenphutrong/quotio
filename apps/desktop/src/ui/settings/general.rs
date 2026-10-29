@@ -1,5 +1,5 @@
 //! General page, built from the Wonder artboard "Page - Quotio Settings General".
-//! Show in Dock is macOS only, and Language is left out until the app is localized.
+//! Show in Dock is macOS only. Language offers English only until the app is localized.
 //! "Show guide" opens the add-account dialog.
 use gpui_kit::assets::IconName;
 use gpui_kit::component::WindowExt as _;
@@ -98,6 +98,20 @@ impl SettingsWindow {
             )
         });
 
+        // ponytail: one option until the app is localized; add locales to this list then.
+        let language = row(
+            "Language",
+            None,
+            select(
+                "language",
+                vec![((), "English".to_owned())],
+                &(),
+                true,
+                |_, _, _| {},
+            ),
+            &p,
+        );
+
         let interval = settings
             .as_ref()
             .and_then(|s| s["refresh_interval"].as_u64())
@@ -170,7 +184,7 @@ impl SettingsWindow {
 
         page(
             "General",
-            "Startup, appearance and how often quota refreshes.",
+            "Startup, language, appearance and how often quota refreshes.",
             &p,
         )
         .child(section(
@@ -179,7 +193,7 @@ impl SettingsWindow {
                 "How Quotio starts and where it lives on {}.",
                 this_computer()
             ),
-            rows([launch].into_iter().chain(dock), &p),
+            rows([launch].into_iter().chain(dock).chain([language]), &p),
             &p,
         ))
         .child(section(

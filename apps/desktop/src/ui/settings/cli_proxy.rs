@@ -14,13 +14,6 @@ use crate::ui::{ButtonKind, button_with_icon, icon};
 impl SettingsWindow {
     pub(super) fn cli_proxy_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = palette(cx).clone();
-        let system = if cfg!(target_os = "macos") {
-            "macOS"
-        } else if cfg!(windows) {
-            "Windows"
-        } else {
-            "Linux"
-        };
         let status = div()
             .flex()
             .items_center()
@@ -50,7 +43,7 @@ impl SettingsWindow {
                             .text_size(px(14.))
                             .font_weight(FontWeight::MEDIUM)
                             .text_color(p.text_strong)
-                            .child(format!("Quotio doesn’t run the proxy on {system} yet")),
+                            .child("The desktop preview doesn’t run the proxy yet"),
                     )
                     .child(
                         div()

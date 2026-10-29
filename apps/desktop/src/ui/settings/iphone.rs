@@ -173,7 +173,7 @@ impl SettingsWindow {
         let busy = self.sharing_busy == Some(mode);
         let glyph = match mode {
             Mode::LocalNetwork => IconName::Wifi,
-            Mode::Tailscale => IconName::ShieldUser,
+            Mode::Tailscale => IconName::ShieldKeyhole,
             Mode::Proxy => IconName::Shield,
         };
         let id = SharedString::from(format!("share-{mode:?}"));

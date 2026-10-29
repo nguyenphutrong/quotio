@@ -30,6 +30,7 @@ icon_assets!(
         Monitor,
         Wifi,
         ShieldUser,
+        ShieldKeyhole,
         Tablet,
         Lock,
         ArrowUpRight,
