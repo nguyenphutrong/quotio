@@ -11,6 +11,7 @@ struct QuotioApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var showOnboarding = false
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.scenePhase) private var scenePhase
 
     private var runtime: AppRuntime { appDelegate.runtime }
     private var quotaScreenModel: QuotaScreenModel { runtime.quotaScreenModel }
@@ -20,7 +21,7 @@ struct QuotioApp: App {
     private var languageManager: LanguageManager { runtime.languageManager }
 
     var body: some Scene {
-        Window(AppIdentity.displayName, id: "main") {
+        Window(AppIdentity.displayName, id: AppKitWindowPresenter.mainWindowID) {
             if AppEnvironment.isRunningUnitTests {
                 EmptyView()
             } else {
@@ -41,19 +42,27 @@ struct QuotioApp: App {
             }
         }
         .defaultSize(width: 900, height: 640)
+        .onChange(of: scenePhase, initial: true) { _, _ in
+            guard !AppEnvironment.isRunningUnitTests else { return }
+            // Keep the scene opener at app scope, even after the last window closes.
+            let action = openWindow
+            runtime.windowPresenter.registerSceneOpener { id in
+                action(id: id)
+            }
+        }
         .commands {
             CommandGroup(replacing: .newItem) { }
             CommandGroup(replacing: .appInfo) {
                 Button("nav.about".localized()) {
                     runtime.navigationScreenModel.currentPage = .updates
-                    openWindow(id: "main")
+                    runtime.windowPresenter.showMainWindow()
                 }
             }
 
             CommandGroup(replacing: .appSettings) {
                 Button("action.openApp".localized()) {
                     runtime.navigationScreenModel.currentPage = .general
-                    openWindow(id: "main")
+                    runtime.windowPresenter.showMainWindow()
                 }
                 .keyboardShortcut(",", modifiers: .command)
             }

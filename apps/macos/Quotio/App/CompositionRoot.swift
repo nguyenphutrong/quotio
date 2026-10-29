@@ -246,6 +246,7 @@ enum CompositionRoot {
             modeManager: modeManager,
             appearanceManager: appearanceManager,
             statusBarManager: statusBarManager,
+            windowPresenter: AppKitWindowPresenter(),
             menuBarSettings: menuBarSettings,
             languageManager: languageManager,
             launchAtLoginModel: launchAtLoginModel,
@@ -290,6 +291,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     let modeManager: OperatingModeManager
     let appearanceManager: AppearanceManager
     let statusBarManager: StatusBarManager
+    let windowPresenter: AppKitWindowPresenter
     let menuBarSettings: MenuBarSettingsManager
     let languageManager: LanguageManager
     let launchAtLoginModel: LaunchAtLoginScreenModel
@@ -322,6 +324,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         modeManager: OperatingModeManager,
         appearanceManager: AppearanceManager,
         statusBarManager: StatusBarManager,
+        windowPresenter: AppKitWindowPresenter,
         menuBarSettings: MenuBarSettingsManager,
         languageManager: LanguageManager,
         launchAtLoginModel: LaunchAtLoginScreenModel,
@@ -348,6 +351,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         self.modeManager = modeManager
         self.appearanceManager = appearanceManager
         self.statusBarManager = statusBarManager
+        self.windowPresenter = windowPresenter
         self.menuBarSettings = menuBarSettings
         self.languageManager = languageManager
         self.launchAtLoginModel = launchAtLoginModel
@@ -373,7 +377,6 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
     }
 
     func connectStatusBar() {
-        let windowPresenter = AppKitWindowPresenter()
         let dispatcher = StatusBarCommandDispatcher(
             handlers: StatusBarCommandHandlers(
                 refreshAll: { [quotaController] in
@@ -392,10 +395,8 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
                     guard let companion = settingsScreenModel.companion else { return }
                     statusBarManager?.presentCompanionPairing(model: companion, pasteboard: pasteboard)
                 },
-                openApp: { [weak statusBarManager, settingsScreenModel, windowPresenter, navigationScreenModel] in
-                    if settingsScreenModel.appShellPreferences.showInDock {
-                        statusBarManager?.closeMenu()
-                    }
+                openApp: { [weak statusBarManager, windowPresenter, navigationScreenModel] in
+                    statusBarManager?.closeMenu()
                     navigationScreenModel.currentPage = .general
                     windowPresenter.showMainWindow()
                 },

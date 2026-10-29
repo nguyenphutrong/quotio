@@ -57,7 +57,7 @@ unexpected_app_tests() {
     local file
     while IFS= read -r file; do
         case "$(basename "${file}")" in
-            AppIdentityTests.swift|AppRuntimeTests.swift|LocalizationBundleTests.swift) ;;
+            AppIdentityTests.swift|AppKitWindowPresenterTests.swift|AppRuntimeTests.swift|LocalizationBundleTests.swift) ;;
             *) printf '%s\n' "${file}" ;;
         esac
     done < <(rg --files --glob '*.swift' "${app_test_root}" 2>/dev/null || true)

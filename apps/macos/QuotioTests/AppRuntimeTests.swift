@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import QuotioApplication
 import QuotioDomain
@@ -86,11 +87,47 @@ final class AppRuntimeTests: XCTestCase {
         _ = await runtime.shutdown()
         XCTAssertEqual(services.shutdownOAuthCount, 1)
     }
+
+    func testApplicationShouldHandleReopenRequestsMainWindowSceneWithoutExistingWindow() {
+        var openedScenes: [String] = []
+        var activationCount = 0
+        let windowPresenter = AppKitWindowPresenter(
+            activate: { activationCount += 1 },
+            schedule: { $0() }
+        )
+        windowPresenter.registerSceneOpener { sceneID in
+            openedScenes.append(sceneID)
+        }
+
+        let services = FakeAppRuntimeServices(windowPresenter: windowPresenter)
+        let runtime = AppRuntime(services: services)
+        let delegate = AppDelegate(runtime: runtime)
+
+        let initialPolicy = NSApplication.shared.activationPolicy()
+        let handled = delegate.applicationShouldHandleReopen(NSApp, hasVisibleWindows: false)
+
+        XCTAssertFalse(handled)
+        XCTAssertEqual(openedScenes, [AppKitWindowPresenter.mainWindowID])
+        XCTAssertEqual(activationCount, 1)
+        XCTAssertEqual(NSApplication.shared.activationPolicy(), initialPolicy)
+    }
+
+    func testRuntimeForwardsWindowPresenterFromServices() {
+        let services = FakeAppRuntimeServices()
+        let runtime = AppRuntime(services: services)
+
+        XCTAssertTrue(runtime.windowPresenter === services.windowPresenter)
+    }
 }
 
 @MainActor
 private final class FakeAppRuntimeServices: AppRuntimeServices {
     private lazy var dependencies = CompositionRoot.makeProduction()
+    let windowPresenter: AppKitWindowPresenter
+
+    init(windowPresenter: AppKitWindowPresenter = AppKitWindowPresenter(activate: {}, schedule: { $0() })) {
+        self.windowPresenter = windowPresenter
+    }
     var proxyScreenModel: ProxyScreenModel { dependencies.proxyScreenModel }
     var quotaController: QuotaFeatureController { dependencies.quotaController }
     var quotaScreenModel: QuotaScreenModel { dependencies.quotaScreenModel }

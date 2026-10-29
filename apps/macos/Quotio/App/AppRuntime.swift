@@ -15,6 +15,7 @@ protocol AppRuntimeServices: AnyObject, Sendable {
     var platformActions: PlatformActionScreenModel { get }
     var menuBarSettings: MenuBarSettingsManager { get }
     var statusBarManager: StatusBarManager { get }
+    var windowPresenter: AppKitWindowPresenter { get }
     var modeManager: OperatingModeManager { get }
     var appearanceManager: AppearanceManager { get }
     var languageManager: LanguageManager { get }
@@ -63,6 +64,7 @@ final class AppRuntime {
     var platformActions: PlatformActionScreenModel { services.platformActions }
     var menuBarSettings: MenuBarSettingsManager { services.menuBarSettings }
     var statusBarManager: StatusBarManager { services.statusBarManager }
+    var windowPresenter: AppKitWindowPresenter { services.windowPresenter }
     var modeManager: OperatingModeManager { services.modeManager }
     var appearanceManager: AppearanceManager { services.appearanceManager }
     var languageManager: LanguageManager { services.languageManager }
