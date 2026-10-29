@@ -18,7 +18,7 @@ use gpui_kit::assets::IconName;
 use gpui_kit::{
     AppContext as _, Context, Decorations, Entity, FontWeight, InteractiveElement, IntoElement,
     ParentElement, Render, StatefulInteractiveElement, Styled, Subscription, Window,
-    WindowControlArea, div, prelude::FluentBuilder as _, px, relative,
+    WindowControlArea, div, prelude::FluentBuilder as _, px, relative, svg,
 };
 
 use gpui_kit::component::input::{InputEvent, InputState};
@@ -74,6 +74,20 @@ impl Page {
             Page::Notifications => IconName::Bell,
             Page::Privacy => IconName::ShieldUser,
             Page::About => IconName::Info,
+        }
+    }
+
+    /// Filled glyph for the selected page, from the design (Remix Icon).
+    fn active_icon(self) -> &'static str {
+        match self {
+            Page::Accounts => "nav/accounts.svg",
+            Page::IphoneSharing => "nav/iphone.svg",
+            Page::CliProxyApi => "nav/cli-proxy.svg",
+            Page::General => "nav/general.svg",
+            Page::MenuBar => "nav/menu-bar.svg",
+            Page::Notifications => "nav/notifications.svg",
+            Page::Privacy => "nav/privacy.svg",
+            Page::About => "nav/about.svg",
         }
     }
 }
@@ -257,18 +271,26 @@ impl SettingsWindow {
                 .font_weight(FontWeight::MEDIUM)
                 .map(|s| {
                     if active {
+                        // GPUI draws the raised ring much darker than the design
+                        // shows it, so light mode keeps only the drop shadow.
+                        let shadow = p.raised().into_iter().take(if p.dark { 2 } else { 1 });
                         s.bg(p.bg_white)
-                            .shadow(p.raised())
+                            .shadow(shadow.collect())
                             .text_color(p.text_strong)
                     } else {
                         s.text_color(p.text_sub).hover(|s| s.bg(p.stroke_soft))
                     }
                 })
-                .child(icon(
-                    page.icon(),
-                    20.,
-                    if active { p.primary } else { p.text_sub },
-                ))
+                .child(if active {
+                    svg()
+                        .path(page.active_icon())
+                        .size(px(20.))
+                        .flex_none()
+                        .text_color(p.primary)
+                        .into_any_element()
+                } else {
+                    icon(page.icon(), 20., p.text_sub).into_any_element()
+                })
                 .child(div().flex_1().child(page.title()))
                 .when_some(badge.filter(|n| *n > 0), |s, n| {
                     s.child(

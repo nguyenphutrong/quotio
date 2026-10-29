@@ -7,6 +7,7 @@ use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
 #[folder = "assets"]
 #[include = "providers/*.svg"]
+#[include = "nav/*.svg"]
 #[include = "fonts/*.otf"]
 pub struct AppFiles;
 
