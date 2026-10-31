@@ -5781,7 +5781,7 @@ dependencies = [
 
 [[package]]
 name = "quotio"
-version = "1.0.0-beta.7"
+version = "1.0.0-beta.8"
 dependencies = [
  "aes-gcm",
  "axum",
