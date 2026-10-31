@@ -7,8 +7,15 @@ use gpui_kit::{
     relative, size,
 };
 
-use super::{icon, progress, provider_logo, shown_name, value_color};
-use crate::model::{AccountView, MetricView, Overview, ProviderGroup};
+use std::collections::HashMap;
+
+use gpui_kit::{HighlightStyle, PathBuilder, StyledText, canvas, point};
+use time::format_description::well_known::Rfc3339;
+use time::{Duration, OffsetDateTime, UtcOffset};
+
+use super::{icon, progress, provider_logo, shown_name, tone_color, value_color};
+use crate::host::Method;
+use crate::model::{AccountView, MetricView, Overview, Pace, ProviderGroup, weekday_time};
 use crate::prefs::Density;
 use crate::store::QuotaStore;
 use crate::theme::{FONT_FAMILY, Palette, palette};
@@ -20,8 +27,12 @@ pub struct QuotaMenu {
     filter: Option<String>,
     focus: FocusHandle,
     was_active: bool,
+    /// Recorded (time, remaining %) per (account, limit), for Detailed burn charts.
+    history: History,
     _subscriptions: Vec<Subscription>,
 }
+
+type History = HashMap<(String, String), Vec<(OffsetDateTime, f64)>>;
 
 impl QuotaMenu {
     pub fn new(store: Entity<QuotaStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -30,7 +41,10 @@ impl QuotaMenu {
         // The system may have switched theme while no window was open to hear it.
         crate::theme::system_changed(window.appearance(), cx);
         let subscriptions = vec![
-            cx.observe(&store, |_, _, cx| cx.notify()),
+            cx.observe(&store, |this: &mut Self, _, cx| {
+                this.load_history(cx);
+                cx.notify()
+            }),
             cx.observe_window_appearance(window, |_, window, cx| {
                 crate::theme::system_changed(window.appearance(), cx)
             }),
@@ -46,12 +60,68 @@ impl QuotaMenu {
                 }
             }),
         ];
-        Self {
+        let mut this = Self {
             store,
             filter: None,
             focus,
             was_active: false,
+            history: HashMap::new(),
             _subscriptions: subscriptions,
+        };
+        this.load_history(cx);
+        this
+    }
+
+    /// Fetches recorded quota once per popup for each limit that gets a burn chart.
+    /// A failed fetch leaves the chart drawing an even spend up to now.
+    fn load_history(&mut self, cx: &mut Context<Self>) {
+        if crate::prefs::get(cx).density != Density::Detailed {
+            return;
+        }
+        let (overview, host) = {
+            let store = self.store.read(cx);
+            (store.overview.clone(), store.host())
+        };
+        let Some(overview) = overview else { return };
+        for account in overview.groups.iter().flat_map(|g| &g.accounts) {
+            for metric in &account.metrics {
+                let Some(pace) = metric.pace.filter(|p| p.behind) else {
+                    continue;
+                };
+                let key = (account.id.clone(), metric.id.clone());
+                if self.history.insert(key.clone(), Vec::new()).is_some() {
+                    continue;
+                }
+                // The shortest range that covers the whole window.
+                let range = if pace.window <= Duration::DAY {
+                    "24h"
+                } else if pace.window <= Duration::days(7) {
+                    "7d"
+                } else {
+                    "30d"
+                };
+                let path = format!("/v2/accounts/{}/quota-history/{}/{range}", key.0, key.1);
+                let request = host.call(Method::GET, path, None);
+                cx.spawn(async move |this, cx| {
+                    let Ok(chart) = request.await else { return };
+                    let points = chart["bins"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|bin| {
+                            let latest = &bin["latest"];
+                            let at =
+                                OffsetDateTime::parse(latest["fetched_at"].as_str()?, &Rfc3339);
+                            Some((at.ok()?, latest["quota"]["remaining_percent"].as_f64()?))
+                        })
+                        .collect();
+                    let _ = this.update(cx, |this, cx| {
+                        this.history.insert(key, points);
+                        cx.notify();
+                    });
+                })
+                .detach();
+            }
         }
     }
 
@@ -193,6 +263,10 @@ impl QuotaMenu {
         let p = palette(cx).clone();
         let provider = group.provider_id.clone();
         let density = crate::prefs::get(cx).density;
+        let (now, offset) = {
+            let store = self.store.read(cx);
+            (store.now(), store.offset())
+        };
         div()
             .flex()
             .flex_col()
@@ -237,8 +311,10 @@ impl QuotaMenu {
                 let name = shown_name(&account.name, cx);
                 match density {
                     Density::Compact => compact_row(account, name, &p),
-                    Density::Comfortable => account_card(account, name, false, &p),
-                    Density::Detailed => account_card(account, name, true, &p),
+                    Density::Comfortable => account_card(account, name, None, &p),
+                    Density::Detailed => {
+                        account_card(account, name, Some((&self.history, now, offset)), &p)
+                    }
                 }
             }))
             .into_any_element()
@@ -380,7 +456,13 @@ impl Render for QuotaMenu {
 }
 
 /// Comfortable shows the limits as tiles; Detailed gives each limit a full-width row.
-fn account_card(account: &AccountView, name: String, detailed: bool, p: &Palette) -> AnyElement {
+fn account_card(
+    account: &AccountView,
+    name: String,
+    detail: Option<(&History, OffsetDateTime, UtcOffset)>,
+    p: &Palette,
+) -> AnyElement {
+    let detailed = detail.is_some();
     let group = SharedString::from(format!("card-{}", account.id));
     let mut card = div()
         .id(group.clone())
@@ -422,8 +504,16 @@ fn account_card(account: &AccountView, name: String, detailed: bool, p: &Palette
                         .child(issue.action.clone()),
                 ),
         );
-    } else if detailed {
-        card = card.children(account.metrics.iter().map(|m| metric_row(m, p)));
+    } else if let Some((history, now, offset)) = detail {
+        // As in the design, only a limit that is running out gets the chart.
+        card = card.children(account.metrics.iter().map(|m| match m.pace {
+            Some(pace) if pace.behind => {
+                let key = (account.id.clone(), m.id.clone());
+                let recorded = history.get(&key).map_or(&[][..], Vec::as_slice);
+                burn_card(m, pace, recorded, now, offset, p).into_any_element()
+            }
+            _ => metric_row(m, p).into_any_element(),
+        }));
     } else if !account.metrics.is_empty() {
         let single = account.metrics.len() == 1;
         card = card.child(
@@ -527,9 +617,17 @@ fn metric_tile(metric: &MetricView, group: &SharedString, p: &Palette) -> impl I
                         .child(metric.value.clone()),
                 ),
         )
-        .child(progress(metric.fill, metric.tone, px(4.), p))
-        .when_some(metric.reset.clone(), |s, reset| {
-            s.child(
+        .child(paced_bar(metric, 4., p))
+        .map(|s| match (&metric.empties, &metric.reset) {
+            // Too narrow for both: the projection matters more than the reset.
+            (Some(empty), _) => s.child(
+                div()
+                    .truncate()
+                    .text_size(px(11.))
+                    .text_color(p.away)
+                    .child(format!("Empty {empty}")),
+            ),
+            (None, Some(reset)) => s.child(
                 div()
                     .flex()
                     .items_center()
@@ -537,7 +635,29 @@ fn metric_tile(metric: &MetricView, group: &SharedString, p: &Palette) -> impl I
                     .text_size(px(11.))
                     .text_color(p.text_soft)
                     .child(icon(IconName::Clock, 11., p.text_soft))
-                    .child(reset),
+                    .child(reset.clone()),
+            ),
+            (None, None) => s,
+        })
+}
+
+/// The bar with a tick where spending the window evenly would be now.
+fn paced_bar(metric: &MetricView, height: f32, p: &Palette) -> impl IntoElement {
+    div()
+        .relative()
+        .py(px(3.))
+        .child(progress(metric.fill, metric.tone, px(height), p))
+        .when_some(metric.tick, |s, tick| {
+            s.child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .left(relative(tick.clamp(0., 1.)))
+                    .ml(px(-1.))
+                    .w(px(2.))
+                    .rounded(px(1.))
+                    .bg(p.text_strong),
             )
         })
 }
@@ -571,15 +691,252 @@ fn metric_row(metric: &MetricView, p: &Palette) -> impl IntoElement {
                         .child(metric.value.clone()),
                 ),
         )
-        .child(progress(metric.fill, metric.tone, px(6.), p))
-        .when_some(metric.reset_sentence(), |s, reset| {
-            s.child(
+        .child(paced_bar(metric, 6., p))
+        .child(
+            div()
+                .flex()
+                .justify_between()
+                .gap(px(8.))
+                .text_size(px(11.))
+                .text_color(p.text_soft)
+                .children(metric.reset_sentence())
+                .when_some(
+                    metric
+                        .pace
+                        .filter(|pace| !pace.behind && pace.used_per_day > 0.),
+                    |s, pace| {
+                        s.child(
+                            div().truncate().child(format!(
+                                "{} · lasts to reset",
+                                pace.rate(pace.used_per_day)
+                            )),
+                        )
+                    },
+                ),
+        )
+}
+
+const PLOT_HEIGHT: f32 = 56.;
+
+/// A limit running out: the window so far, the even-pace line, where the current
+/// rate leads, and what to do about it. From the design's "Detailed card".
+fn burn_card(
+    metric: &MetricView,
+    pace: Pace,
+    recorded: &[(OffsetDateTime, f64)],
+    now: OffsetDateTime,
+    offset: UtcOffset,
+    p: &Palette,
+) -> impl IntoElement {
+    let color = tone_color(metric.tone, p);
+    let start = pace.resets_at - pace.window;
+    let x = move |at: OffsetDateTime| ((at - start) / pace.window).clamp(0., 1.) as f32;
+    // Without recorded values, assume an even spend from a full window to now.
+    let mut line: Vec<(f32, f32)> = recorded
+        .iter()
+        .filter(|(at, _)| *at >= start && *at < now)
+        .map(|(at, r)| (x(*at), (*r / 100.) as f32))
+        .collect();
+    if line.is_empty() {
+        line.push((0., 1.));
+    }
+    line.push((x(now), (pace.remaining / 100.) as f32));
+    let end = match pace.projected_empty {
+        Some(empty) => (x(empty), 0.),
+        None => (1., (pace.remaining_at_reset(now) / 100.) as f32),
+    };
+    let plot = {
+        let (line, p) = (line.clone(), p.clone());
+        canvas(
+            |_, _, _| (),
+            move |bounds, (), window, _| {
+                let (w, h) = (bounds.size.width, bounds.size.height);
+                let at = |(fx, fr): (f32, f32)| {
+                    bounds.origin + point(w * fx, h * (1. - fr.clamp(0., 1.)))
+                };
+                let current = *line.last().unwrap_or(&(0., 0.));
+                let mut area = PathBuilder::fill();
+                let mut corners: Vec<_> = vec![at((line[0].0, 0.))];
+                corners.extend(line.iter().map(|pt| at(*pt)));
+                corners.push(at((current.0, 0.)));
+                area.add_polygon(&corners, true);
+                if let Ok(area) = area.build() {
+                    window.paint_path(area, color.opacity(0.15));
+                }
+                let mut stroke = |points: &[(f32, f32)], width: f32, dash: &[f32], color| {
+                    let mut path = PathBuilder::stroke(px(width));
+                    if !dash.is_empty() {
+                        let dash: Vec<_> = dash.iter().map(|d| px(*d)).collect();
+                        path = path.dash_array(&dash);
+                    }
+                    path.move_to(at(points[0]));
+                    points[1..].iter().for_each(|pt| path.line_to(at(*pt)));
+                    if let Ok(path) = path.build() {
+                        window.paint_path(path, color);
+                    }
+                };
+                stroke(&[(0., 1.), (1., 0.)], 1., &[1., 3.], p.text_soft);
+                stroke(&line, 2., &[], color);
+                stroke(&[current, end], 1.5, &[3., 3.], p.error);
+                let dot = |center: (f32, f32), size: f32| {
+                    gpui_kit::Bounds::centered_at(at(center), gpui_kit::size(px(size), px(size)))
+                };
+                window.paint_quad(gpui_kit::fill(dot(end, 5.), p.error).corner_radii(px(2.5)));
+                window.paint_quad(gpui_kit::fill(
+                    gpui_kit::Bounds::new(
+                        bounds.origin + point(w - px(1.5), px(0.)),
+                        gpui_kit::size(px(1.5), h),
+                    ),
+                    p.info,
+                ));
+                window.paint_quad(
+                    gpui_kit::fill(dot(current, 8.), p.bg_white)
+                        .corner_radii(px(4.))
+                        .border_widths(px(1.5))
+                        .border_color(color),
+                );
+            },
+        )
+        .w_full()
+        .h(px(PLOT_HEIGHT))
+    };
+
+    // Weekdays repeat inside a short window, so those read as clock times.
+    let axis = |at: OffsetDateTime| {
+        if pace.window >= Duration::days(2) {
+            weekday_time(at, offset)[..3].to_owned()
+        } else {
+            let local = at.to_offset(offset);
+            format!("{:02}:{:02}", local.hour(), local.minute())
+        }
+    };
+    let now_x = x(now);
+    let empty_x = pace.projected_empty.map(x);
+    // Labels under a point drop out near the edges or when they would collide.
+    let inside = |f: f32| f > 0.12 && f < 0.77;
+    let label = |f: f32, text: String, color, weight| {
+        div()
+            .absolute()
+            .top_0()
+            .left(relative(f))
+            .w(px(0.))
+            .flex()
+            .justify_center()
+            .child(
                 div()
-                    .text_size(px(11.))
-                    .text_color(p.text_soft)
-                    .child(reset),
+                    .whitespace_nowrap()
+                    .font_weight(weight)
+                    .text_color(color)
+                    .child(text),
             )
-        })
+    };
+    let labels = div()
+        .relative()
+        .h(px(14.))
+        .text_size(px(11.))
+        .child(div().text_color(p.text_soft).child(axis(start)))
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .right_0()
+                .text_color(p.info)
+                .child(format!("Reset {}", axis(pace.resets_at))),
+        )
+        .when(
+            inside(now_x) && empty_x.is_none_or(|e| (e - now_x).abs() > 0.12),
+            |s| {
+                s.child(label(
+                    now_x,
+                    "Now".into(),
+                    p.text_strong,
+                    FontWeight::MEDIUM,
+                ))
+            },
+        )
+        .when_some(
+            pace.projected_empty.filter(|_| empty_x.is_some_and(inside)),
+            |s, empty| {
+                s.child(label(
+                    empty_x.unwrap_or_default(),
+                    axis(empty),
+                    p.error,
+                    FontWeight::SEMIBOLD,
+                ))
+            },
+        );
+
+    let until = if pace.window < Duration::DAY {
+        let local = pace.resets_at.to_offset(offset);
+        format!("{:02}:{:02}", local.hour(), local.minute())
+    } else {
+        weekday_time(pace.resets_at, offset)
+    };
+    let lead = format!("Using {}.", pace.rate(pace.used_per_day));
+    let text = format!(
+        "{lead} To last until {until}, stay under {}. Estimated",
+        pace.rate(pace.budget_per_day)
+    );
+    let estimated = text.len() - "Estimated".len()..text.len();
+    let advice = StyledText::new(text).with_highlights([
+        (
+            0..lead.len(),
+            HighlightStyle {
+                color: Some(p.error),
+                font_weight: Some(FontWeight::SEMIBOLD),
+                ..Default::default()
+            },
+        ),
+        (
+            estimated,
+            HighlightStyle {
+                color: Some(p.text_soft),
+                ..Default::default()
+            },
+        ),
+    ]);
+
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(8.))
+        .p(px(10.))
+        .rounded(px(10.))
+        .border_1()
+        .border_color(p.away.opacity(0.3))
+        .bg(p.away.opacity(0.07))
+        .child(
+            div()
+                .flex()
+                .justify_between()
+                .items_baseline()
+                .child(
+                    div()
+                        .text_size(px(13.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(p.text_strong)
+                        .child(metric.label.clone()),
+                )
+                .child(
+                    div()
+                        .text_size(px(13.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(color)
+                        .child(metric.value.clone()),
+                ),
+        )
+        .child(plot)
+        .child(labels)
+        .child(div().h(px(1.)).bg(p.away.opacity(0.3)))
+        .child(
+            div()
+                .flex()
+                .gap(px(6.))
+                .text_size(px(12.))
+                .text_color(p.text_sub)
+                .child(div().pt(px(2.)).child(icon(IconName::Gauge, 12., p.error)))
+                .child(div().flex_1().min_w_0().child(advice)),
+        )
 }
 
 /// Compact density: one line per account, a mini bar for each of the two tightest
@@ -705,10 +1062,17 @@ pub fn preferred_height_for(overview: Option<&Overview>, density: Density) -> f3
                         (Density::Comfortable, Some(_), _) => 76.,
                         (Density::Detailed, Some(_), _) => 80.,
                         (Density::Comfortable, None, 0) => 40.,
-                        (Density::Detailed, None, n) => 46. + n as f32 * 65.,
+                        (Density::Detailed, None, n) => {
+                            let burning = account
+                                .metrics
+                                .iter()
+                                .filter(|m| m.pace.is_some_and(|p| p.behind))
+                                .count();
+                            46. + n as f32 * 71. + burning as f32 * 110.
+                        }
                         (Density::Comfortable, None, n) => {
                             let rows = n.div_ceil(2) as f32;
-                            50. + rows * 62. + (rows - 1.) * 8.
+                            50. + rows * 68. + (rows - 1.) * 8.
                         }
                     },
                 )

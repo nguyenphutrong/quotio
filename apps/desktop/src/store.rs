@@ -64,7 +64,7 @@ impl QuotaStore {
         }
     }
 
-    fn now(&self) -> OffsetDateTime {
+    pub fn now(&self) -> OffsetDateTime {
         match self.clock {
             Clock::System => OffsetDateTime::now_utc(),
             Clock::Frozen(at) => at,

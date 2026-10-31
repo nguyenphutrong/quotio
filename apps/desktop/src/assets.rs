@@ -15,6 +15,7 @@ icon_assets!(
     ExtraIcons,
     [
         Clock,
+        Gauge,
         Pin,
         Smartphone,
         Power,

@@ -175,6 +175,7 @@
           "amounts": null,
           "consumption": null,
           "resets_at": "2026-10-16T10:44:00Z",
+          "window_seconds": 18000,
           "reset_description": null,
           "fetched_at": "2026-10-16T09:00:00Z",
           "provenance": {
@@ -193,6 +194,7 @@
           "amounts": null,
           "consumption": null,
           "resets_at": "2026-10-19T09:00:00Z",
+          "window_seconds": 604800,
           "reset_description": null,
           "fetched_at": "2026-10-16T09:00:00Z",
           "provenance": {
@@ -234,6 +236,7 @@
           "amounts": null,
           "consumption": null,
           "resets_at": "2026-10-16T12:07:00Z",
+          "window_seconds": 18000,
           "reset_description": null,
           "fetched_at": "2026-10-16T09:00:00Z",
           "provenance": {
@@ -252,6 +255,7 @@
           "amounts": null,
           "consumption": null,
           "resets_at": "2026-10-22T14:20:00Z",
+          "window_seconds": 604800,
           "reset_description": null,
           "fetched_at": "2026-10-16T09:00:00Z",
           "provenance": {
@@ -280,6 +284,7 @@
           "amounts": null,
           "consumption": null,
           "resets_at": "2026-10-17T07:00:00Z",
+          "window_seconds": 86400,
           "reset_description": null,
           "fetched_at": "2026-10-16T09:00:00Z",
           "provenance": {

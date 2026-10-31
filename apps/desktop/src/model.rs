@@ -27,8 +27,92 @@ pub fn tone(remaining_percent: f64) -> Tone {
     }
 }
 
+/// How a limit is tracking against spending its window evenly, as `QuotaPace` on macOS.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Pace {
+    /// Percent left now.
+    pub remaining: f64,
+    /// Percent an even spend would leave now: `100 × (1 − elapsed / window)`.
+    pub expected_remaining: f64,
+    pub resets_at: OffsetDateTime,
+    pub window: Duration,
+    /// Runs out before the reset at the average rate, and is more than a hair below even.
+    pub behind: bool,
+    /// Average use per day since the window opened, in percentage points.
+    pub used_per_day: f64,
+    /// Use per day that lasts exactly until the reset.
+    pub budget_per_day: f64,
+    /// When the average rate empties the limit, if before the reset.
+    pub projected_empty: Option<OffsetDateTime>,
+}
+
+impl Pace {
+    pub fn new(
+        remaining_percent: f64,
+        resets_at: Option<OffsetDateTime>,
+        window_seconds: Option<u64>,
+        now: OffsetDateTime,
+    ) -> Option<Self> {
+        let (resets_at, window) = (resets_at?, Duration::seconds(window_seconds? as i64));
+        let until_reset = (resets_at - now).as_seconds_f64();
+        let window_s = window.as_seconds_f64();
+        // A reset further away than one window means the window length is wrong.
+        if remaining_percent < 0.
+            || window_s <= 0.
+            || until_reset <= 0.
+            || until_reset > window_s * 1.01
+        {
+            return None;
+        }
+        let remaining = remaining_percent.min(100.);
+        let elapsed = (window_s - until_reset).max(0.);
+        let expected_remaining = 100. * until_reset / window_s;
+        let used = 100. - remaining;
+        // Below 2% of the window there is too little use for a rate to mean anything.
+        let (used_per_day, projected_empty) = if elapsed >= window_s * 0.02 && used > 0. {
+            let per_second = used / elapsed;
+            let empty = now + Duration::seconds_f64(remaining / per_second);
+            (
+                per_second * 86_400.,
+                (remaining > 0. && empty < resets_at).then_some(empty),
+            )
+        } else {
+            (0., None)
+        };
+        Some(Self {
+            remaining,
+            expected_remaining,
+            resets_at,
+            window,
+            // Within 3 points of even still counts as on pace, so the bar doesn't flicker amber.
+            behind: remaining > 0.
+                && projected_empty.is_some()
+                && remaining < expected_remaining - 3.,
+            used_per_day,
+            budget_per_day: remaining / (until_reset / 86_400.),
+            projected_empty,
+        })
+    }
+
+    /// What would be left at the reset if the average rate holds.
+    pub fn remaining_at_reset(&self, now: OffsetDateTime) -> f64 {
+        (self.remaining - self.used_per_day * (self.resets_at - now).as_seconds_f64() / 86_400.)
+            .max(0.)
+    }
+
+    /// `~9% an hour` inside a window shorter than a day, `~34% a day` otherwise.
+    pub fn rate(&self, per_day: f64) -> String {
+        if self.window < Duration::DAY {
+            format!("~{}% an hour", (per_day / 24.).round().max(1.))
+        } else {
+            format!("~{}% a day", per_day.round().max(1.))
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MetricView {
+    pub id: String,
     pub label: String,
     pub value: String,
     /// Remaining share in `0.0..=1.0`, when the quota is a percentage.
@@ -39,6 +123,11 @@ pub struct MetricView {
     pub tone: Tone,
     /// Compact reset, such as `1h 42m`, `Mon 09:00`, or `at 07:00` for a daily window.
     pub reset: Option<String>,
+    pub pace: Option<Pace>,
+    /// Where the even-pace tick sits on the bar, in the same direction as `fill`.
+    pub tick: Option<f32>,
+    /// `Sun 10:00`, when the average rate empties the limit before its reset.
+    pub empties: Option<String>,
 }
 
 impl MetricView {
@@ -405,6 +494,17 @@ fn issue(account: &Account, usage: Option<&Usage>, now: OffsetDateTime) -> Optio
 }
 
 fn metric_view(metric: &Metric, now: OffsetDateTime, offset: UtcOffset, used: bool) -> MetricView {
+    let pace = match &metric.quota {
+        Quota::Available {
+            remaining_percent, ..
+        } => Pace::new(
+            *remaining_percent,
+            metric.resets_at,
+            metric.window_seconds,
+            now,
+        ),
+        _ => None,
+    };
     let (value, remaining, tone) = match &metric.quota {
         Quota::Available {
             remaining_percent, ..
@@ -417,8 +517,14 @@ fn metric_view(metric: &Metric, now: OffsetDateTime, offset: UtcOffset, used: bo
             (
                 format!("{shown:.0}%"),
                 Some((remaining / 100.) as f32),
-                // Color follows what is left either way, as on macOS.
-                tone(remaining),
+                // Color follows what is left either way, as on macOS. With a known
+                // window, it follows the pace instead of fixed thresholds.
+                match pace {
+                    _ if remaining <= 0. => Tone::Critical,
+                    Some(pace) if pace.behind => Tone::Warning,
+                    Some(_) => Tone::Good,
+                    None => tone(remaining),
+                },
             )
         }
         Quota::Unlimited => ("Unlimited".into(), None, Tone::Neutral),
@@ -437,13 +543,25 @@ fn metric_view(metric: &Metric, now: OffsetDateTime, offset: UtcOffset, used: bo
             _ => compact_reset(at, now, offset),
         })
         .or_else(|| metric.reset_description.clone());
+    let tick = pace
+        .filter(|p| p.remaining > 0.)
+        .map(|p| (p.expected_remaining / 100.) as f32)
+        .map(|t| if used { 1. - t } else { t });
+    let empties = pace
+        .filter(|p| p.behind)
+        .and_then(|p| p.projected_empty)
+        .map(|at| weekday_time(at, offset));
     MetricView {
+        id: metric.id.clone(),
         label: metric.display_name.clone(),
         value,
         remaining,
         fill: remaining.map(|r| if used { 1. - r } else { r }),
         tone,
         reset,
+        pace,
+        tick,
+        empties,
     }
 }
 
@@ -460,6 +578,11 @@ pub fn compact_reset(at: OffsetDateTime, now: OffsetDateTime, offset: UtcOffset)
             (h, m) => format!("{h}h {m:02}m"),
         };
     }
+    weekday_time(at, offset)
+}
+
+/// `Mon 09:00` in local time.
+pub fn weekday_time(at: OffsetDateTime, offset: UtcOffset) -> String {
     let local = at.to_offset(offset);
     format!(
         "{} {:02}:{:02}",
@@ -515,6 +638,32 @@ pub fn ago_phrase(elapsed: Duration) -> String {
 mod tests {
     use super::*;
     use quotio::contract::summary::Totals;
+
+    #[test]
+    fn pace_compares_use_with_an_even_spend() {
+        let now = OffsetDateTime::UNIX_EPOCH + Duration::days(100);
+        let week = Some(7 * 86_400);
+        let reset = Some(now + Duration::days(2));
+        // 82 points in 5 days empties the last 18 in about 1.1 days, before the reset.
+        let behind = Pace::new(18., reset, week, now).unwrap();
+        assert!(behind.behind);
+        assert!((behind.expected_remaining - 200. / 7.).abs() < 1e-9);
+        assert!((behind.used_per_day - 16.4).abs() < 1e-9);
+        assert!((behind.budget_per_day - 9.).abs() < 1e-9);
+        let empty = behind.projected_empty.unwrap() - now;
+        assert!((empty.as_seconds_f64() / 86_400. - 18. / 16.4).abs() < 1e-6);
+        assert_eq!(behind.rate(behind.used_per_day), "~16% a day");
+        // 60 points in 5 days lasts past the reset, with 16 left.
+        let fine = Pace::new(40., reset, week, now).unwrap();
+        assert!(!fine.behind && fine.projected_empty.is_none());
+        assert!((fine.remaining_at_reset(now) - 16.).abs() < 1e-9);
+        // A short window speaks in hours.
+        let session = Pace::new(50., Some(now + Duration::hours(1)), Some(5 * 3600), now).unwrap();
+        assert_eq!(session.rate(session.used_per_day), "~13% an hour");
+        // A reset further than one window away means the window is wrong.
+        assert!(Pace::new(50., Some(now + Duration::days(8)), week, now).is_none());
+        assert!(Pace::new(50., reset, None, now).is_none());
+    }
 
     #[test]
     fn total_follows_usage_calculation_preferences() {
