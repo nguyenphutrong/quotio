@@ -37,7 +37,8 @@ icon_assets!(
         Lock,
         ArrowUpRight,
         Timer,
-        PinOff
+        PinOff,
+        RotateCcwClock
     ]
 );
 

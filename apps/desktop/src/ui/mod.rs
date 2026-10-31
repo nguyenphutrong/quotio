@@ -1,4 +1,5 @@
 pub mod menu;
+pub mod panel;
 pub mod settings;
 
 use gpui_kit::assets::IconName;

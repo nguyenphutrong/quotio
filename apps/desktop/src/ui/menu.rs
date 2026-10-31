@@ -7,14 +7,17 @@ use gpui_kit::{
     relative, size,
 };
 
+use std::cell::Cell;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use gpui_kit::{HighlightStyle, PathBuilder, StyledText, canvas, point};
 use time::format_description::well_known::Rfc3339;
 use time::{Duration, OffsetDateTime, UtcOffset};
 
 use super::{icon, progress, provider_logo, shown_name, tone_color, value_color};
-use crate::host::Method;
+use crate::host::{HostClient, Method};
 use crate::model::{AccountView, MetricView, Overview, Pace, ProviderGroup, weekday_time};
 use crate::prefs::Density;
 use crate::store::QuotaStore;
@@ -32,7 +35,7 @@ pub struct QuotaMenu {
     _subscriptions: Vec<Subscription>,
 }
 
-type History = HashMap<(String, String), Vec<(OffsetDateTime, f64)>>;
+pub(super) type History = HashMap<(String, String), Vec<(OffsetDateTime, f64)>>;
 
 impl QuotaMenu {
     pub fn new(store: Entity<QuotaStore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -55,8 +58,7 @@ impl QuotaMenu {
                 if window.is_window_active() {
                     this.was_active = true;
                 } else if this.was_active {
-                    crate::app::note_menu_dismissed(cx);
-                    window.remove_window();
+                    crate::app::popup_deactivated(cx);
                 }
             }),
         ];
@@ -92,29 +94,9 @@ impl QuotaMenu {
                 if self.history.insert(key.clone(), Vec::new()).is_some() {
                     continue;
                 }
-                // The shortest range that covers the whole window.
-                let range = if pace.window <= Duration::DAY {
-                    "24h"
-                } else if pace.window <= Duration::days(7) {
-                    "7d"
-                } else {
-                    "30d"
-                };
-                let path = format!("/v2/accounts/{}/quota-history/{}/{range}", key.0, key.1);
-                let request = host.call(Method::GET, path, None);
+                let request = fetch_history(&host, &key.0, &key.1, pace.window);
                 cx.spawn(async move |this, cx| {
-                    let Ok(chart) = request.await else { return };
-                    let points = chart["bins"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|bin| {
-                            let latest = &bin["latest"];
-                            let at =
-                                OffsetDateTime::parse(latest["fetched_at"].as_str()?, &Rfc3339);
-                            Some((at.ok()?, latest["quota"]["remaining_percent"].as_f64()?))
-                        })
-                        .collect();
+                    let Some(points) = request.await else { return };
                     let _ = this.update(cx, |this, cx| {
                         this.history.insert(key, points);
                         cx.notify();
@@ -382,6 +364,38 @@ impl QuotaMenu {
     }
 }
 
+/// Recorded (time, remaining %) for one limit, over the shortest range that covers its window.
+pub(super) fn fetch_history(
+    host: &Arc<dyn HostClient>,
+    account: &str,
+    metric: &str,
+    window: Duration,
+) -> impl Future<Output = Option<Vec<(OffsetDateTime, f64)>>> + use<> {
+    let range = if window <= Duration::DAY {
+        "24h"
+    } else if window <= Duration::days(7) {
+        "7d"
+    } else {
+        "30d"
+    };
+    let path = format!("/v2/accounts/{account}/quota-history/{metric}/{range}");
+    let request = host.call(Method::GET, path, None);
+    async move {
+        let chart = request.await.ok()?;
+        let points = chart["bins"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|bin| {
+                let latest = &bin["latest"];
+                let at = OffsetDateTime::parse(latest["fetched_at"].as_str()?, &Rfc3339);
+                Some((at.ok()?, latest["quota"]["remaining_percent"].as_f64()?))
+            })
+            .collect();
+        Some(points)
+    }
+}
+
 impl Render for QuotaMenu {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = palette(cx).clone();
@@ -479,6 +493,37 @@ fn account_card(
         }))
         .cursor_pointer()
         .hover(|s| s.bg(p.bg_weak))
+        // Like a submenu, hovering a card shows its limits over time beside the popup.
+        .when(account.issue.is_none(), |s| {
+            // Where the card was laid out, so the panel lines up with it.
+            let top = Rc::new(Cell::new(px(0.)));
+            let id = account.id.clone();
+            s.relative()
+                .child(
+                    canvas(
+                        {
+                            let top = top.clone();
+                            move |bounds, _, _| top.set(bounds.top())
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full(),
+                )
+                .on_hover(move |hovered, window, cx| {
+                    if *hovered {
+                        let menu = window.bounds();
+                        crate::app::show_account_panel(
+                            id.clone(),
+                            menu,
+                            menu.top() + top.get(),
+                            cx,
+                        );
+                    }
+                })
+        })
         .on_click({
             // A card that needs fixing goes to Accounts; the rest open their history.
             let target = account.issue.is_none().then(|| account.clone());
@@ -517,7 +562,17 @@ fn account_card(
             Some(pace) if pace.behind => {
                 let key = (account.id.clone(), m.id.clone());
                 let recorded = history.get(&key).map_or(&[][..], Vec::as_slice);
-                burn_card(m, pace, recorded, now, offset, p).into_any_element()
+                burn_card(
+                    m,
+                    m.label.clone(),
+                    pace,
+                    recorded,
+                    now,
+                    offset,
+                    PLOT_HEIGHT,
+                    p,
+                )
+                .into_any_element()
             }
             _ => metric_row(m, p).into_any_element(),
         }));
@@ -670,7 +725,7 @@ fn paced_bar(metric: &MetricView, height: f32, p: &Palette) -> impl IntoElement 
 }
 
 /// Detailed density: one limit across the card, with its reset in words.
-fn metric_row(metric: &MetricView, p: &Palette) -> impl IntoElement {
+pub(super) fn metric_row(metric: &MetricView, p: &Palette) -> impl IntoElement {
     div()
         .flex()
         .flex_col()
@@ -727,15 +782,20 @@ const PLOT_HEIGHT: f32 = 56.;
 
 /// A limit running out: the window so far, the even-pace line, where the current
 /// rate leads, and what to do about it. From the design's "Detailed card".
-fn burn_card(
+#[allow(clippy::too_many_arguments)]
+pub(super) fn burn_card(
     metric: &MetricView,
+    title: String,
     pace: Pace,
     recorded: &[(OffsetDateTime, f64)],
     now: OffsetDateTime,
     offset: UtcOffset,
+    plot_height: f32,
     p: &Palette,
 ) -> impl IntoElement {
     let color = tone_color(metric.tone, p);
+    // A limit on pace is drawn quietly: projection in its own colour, no warning tint.
+    let warn = if pace.behind { p.error } else { color };
     let start = pace.resets_at - pace.window;
     let x = move |at: OffsetDateTime| ((at - start) / pace.window).clamp(0., 1.) as f32;
     // Without recorded values, assume an even spend from a full window to now.
@@ -784,11 +844,13 @@ fn burn_card(
                 };
                 stroke(&[(0., 1.), (1., 0.)], 1., &[1., 3.], p.text_soft);
                 stroke(&line, 2., &[], color);
-                stroke(&[current, end], 1.5, &[3., 3.], p.error);
+                stroke(&[current, end], 1.5, &[3., 3.], warn);
                 let dot = |center: (f32, f32), size: f32| {
                     gpui_kit::Bounds::centered_at(at(center), gpui_kit::size(px(size), px(size)))
                 };
-                window.paint_quad(gpui_kit::fill(dot(end, 5.), p.error).corner_radii(px(2.5)));
+                if pace.behind {
+                    window.paint_quad(gpui_kit::fill(dot(end, 5.), p.error).corner_radii(px(2.5)));
+                }
                 window.paint_quad(gpui_kit::fill(
                     gpui_kit::Bounds::new(
                         bounds.origin + point(w - px(1.5), px(0.)),
@@ -805,7 +867,7 @@ fn burn_card(
             },
         )
         .w_full()
-        .h(px(PLOT_HEIGHT))
+        .h(px(plot_height))
     };
 
     // Weekdays repeat inside a short window, so those read as clock times.
@@ -879,17 +941,39 @@ fn burn_card(
     } else {
         weekday_time(pace.resets_at, offset)
     };
-    let lead = format!("Using {}.", pace.rate(pace.used_per_day));
-    let text = format!(
-        "{lead} To last until {until}, stay under {}. Estimated",
-        pace.rate(pace.budget_per_day)
-    );
-    let estimated = text.len() - "Estimated".len()..text.len();
+    let (lead, text) = if pace.behind {
+        let lead = format!("Using {}.", pace.rate(pace.used_per_day));
+        let text = format!(
+            "{lead} To last until {until}, stay under {}. Estimated",
+            pace.rate(pace.budget_per_day)
+        );
+        (lead, text)
+    } else {
+        let lead = format!("{}.", pace.rate(pace.used_per_day));
+        let left = pace.remaining_at_reset(now);
+        let text = if left < 1. {
+            format!("{lead}  On pace to last until reset.")
+        } else {
+            format!("{lead}  About {left:.0}% left at reset.")
+        };
+        (lead, text)
+    };
+    // The panel's legend already says the projection is estimated.
+    let estimated = if pace.behind {
+        text.len() - "Estimated".len()..text.len()
+    } else {
+        0..0
+    };
+    let (tint, edge) = if pace.behind {
+        (p.away.opacity(0.07), p.away.opacity(0.3))
+    } else {
+        (p.bg_weak, p.stroke_soft)
+    };
     let advice = StyledText::new(text).with_highlights([
         (
             0..lead.len(),
             HighlightStyle {
-                color: Some(p.error),
+                color: Some(if pace.behind { p.error } else { p.text_strong }),
                 font_weight: Some(FontWeight::SEMIBOLD),
                 ..Default::default()
             },
@@ -910,8 +994,8 @@ fn burn_card(
         .p(px(10.))
         .rounded(px(10.))
         .border_1()
-        .border_color(p.away.opacity(0.3))
-        .bg(p.away.opacity(0.07))
+        .border_color(if pace.behind { edge } else { tint })
+        .bg(tint)
         .child(
             div()
                 .flex()
@@ -922,26 +1006,34 @@ fn burn_card(
                         .text_size(px(13.))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(p.text_strong)
-                        .child(metric.label.clone()),
+                        .child(title),
                 )
                 .child(
                     div()
                         .text_size(px(13.))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(color)
+                        .text_color(if pace.behind {
+                            color
+                        } else {
+                            value_color(metric.tone, p)
+                        })
                         .child(metric.value.clone()),
                 ),
         )
         .child(plot)
         .child(labels)
-        .child(div().h(px(1.)).bg(p.away.opacity(0.3)))
+        .child(div().h(px(1.)).bg(edge))
         .child(
             div()
                 .flex()
                 .gap(px(6.))
                 .text_size(px(12.))
                 .text_color(p.text_sub)
-                .child(div().pt(px(2.)).child(icon(IconName::Gauge, 12., p.error)))
+                .child(div().pt(px(2.)).child(icon(
+                    IconName::Gauge,
+                    12.,
+                    if pace.behind { p.error } else { p.text_soft },
+                )))
                 .child(div().flex_1().min_w_0().child(advice)),
         )
 }

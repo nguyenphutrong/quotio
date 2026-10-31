@@ -9,7 +9,7 @@ use gpui_kit::{
 
 use crate::store::QuotaStore;
 use crate::ui::{
-    menu,
+    menu, panel,
     settings::{Page, SettingsWindow},
 };
 
@@ -19,6 +19,8 @@ const MENU_GAP: f32 = 8.;
 struct Shell {
     store: Entity<QuotaStore>,
     menu: Option<AnyWindowHandle>,
+    /// The account panel beside the popup, and whose limits it shows.
+    panel: Option<(AnyWindowHandle, String)>,
     settings: Option<AnyWindowHandle>,
     settings_view: Option<WeakEntity<SettingsWindow>>,
     menu_dismissed_at: Option<Instant>,
@@ -30,10 +32,138 @@ pub fn init(store: Entity<QuotaStore>, cx: &mut App) {
     cx.set_global(Shell {
         store,
         menu: None,
+        panel: None,
         settings: None,
         settings_view: None,
         menu_dismissed_at: None,
     });
+    // The panel belongs to the popup: however the popup closes, the panel goes too.
+    cx.on_window_closed(|cx, id| {
+        let shell = cx.global_mut::<Shell>();
+        if shell
+            .panel
+            .as_ref()
+            .is_some_and(|(h, _)| h.window_id() == id)
+        {
+            shell.panel = None;
+        } else if shell.menu.is_some_and(|h| h.window_id() == id)
+            && let Some((panel, _)) = shell.panel.take()
+        {
+            shell.menu = None;
+            let _ = panel.update(cx, |_, window, _| window.remove_window());
+        }
+    })
+    .detach();
+}
+
+/// The popup or its panel lost focus. Focus may only be moving between the two,
+/// which the system reports as a separate event, so look again a moment later.
+pub fn popup_deactivated(cx: &mut App) {
+    cx.spawn(async move |cx| {
+        cx.background_executor()
+            .timer(Duration::from_millis(100))
+            .await;
+        cx.update(|cx| {
+            let active = cx.active_window();
+            let shell = cx.global::<Shell>();
+            let ours = [shell.menu, shell.panel.as_ref().map(|(h, _)| *h)];
+            if active.is_some() && ours.contains(&active) {
+                return;
+            }
+            // A click in the panel need not focus it, yet it is still a click inside the
+            // menu: hand focus back to the popup so a later click elsewhere still closes it.
+            let in_panel = ours[1].is_some_and(|panel| {
+                panel
+                    .update(cx, |_, window, _| {
+                        let (at, size) = (window.mouse_position(), window.viewport_size());
+                        at.x >= px(0.) && at.y >= px(0.) && at.x < size.width && at.y < size.height
+                    })
+                    .unwrap_or(false)
+            });
+            if in_panel && let Some(menu) = ours[0] {
+                let _ = menu.update(cx, |_, window, _| window.activate_window());
+                return;
+            }
+            close_popup(cx);
+        })
+    })
+    .detach();
+}
+
+/// Close the popup, and with it the account panel.
+pub fn close_popup(cx: &mut App) {
+    let shell = cx.global_mut::<Shell>();
+    let windows = [shell.menu, shell.panel.take().map(|(h, _)| h)];
+    note_menu_dismissed(cx);
+    for window in windows.into_iter().flatten() {
+        let _ = window.update(cx, |_, window, _| window.remove_window());
+    }
+}
+
+/// Show an account's limits over time beside the popup at `beside`, level with the
+/// hovered card at `top`, as a submenu would.
+pub fn show_account_panel(account: String, beside: Bounds<Pixels>, top: Pixels, cx: &mut App) {
+    let shell = cx.global_mut::<Shell>();
+    if shell.panel.as_ref().is_some_and(|(_, id)| *id == account) {
+        return;
+    }
+    if let Some((panel, _)) = shell.panel.take() {
+        let _ = panel.update(cx, |_, window, _| window.remove_window());
+    }
+    let store = cx.global::<Shell>().store.clone();
+    let width = px(menu::WIDTH);
+    let height = px(panel::preferred_height(&store, &account, cx));
+    let gap = px(MENU_GAP);
+    // Open to the right like a submenu, or to the left when the screen ends first.
+    let area = cx
+        .displays()
+        .into_iter()
+        .map(|d| d.bounds())
+        .find(|b| b.contains(&beside.origin));
+    // Level with the card, unless that would run off the bottom of the screen.
+    let y = area.map_or(top, |area| top.min(area.bottom() - height - gap));
+    let x = match area {
+        Some(area) if beside.right() + gap + width > area.right() => beside.left() - gap - width,
+        _ => beside.right() + gap,
+    };
+    let bounds = Bounds::new(point(x, y), size(width, height));
+    let options = WindowOptions {
+        window_bounds: Some(WindowBounds::Windowed(bounds)),
+        titlebar: cfg!(target_os = "linux").then(|| TitlebarOptions {
+            title: Some("Quotio".into()),
+            ..Default::default()
+        }),
+        // Hovering must not take focus from the popup, which closes when it loses it.
+        focus: false,
+        show: true,
+        kind: if cfg!(target_os = "linux") {
+            WindowKind::Normal
+        } else {
+            WindowKind::PopUp
+        },
+        is_movable: false,
+        is_resizable: false,
+        is_minimizable: false,
+        window_background: WindowBackgroundAppearance::Transparent,
+        window_decorations: Some(WindowDecorations::Client),
+        app_id: Some(APP_ID.into()),
+        ..Default::default()
+    };
+    let id = account.clone();
+    match gpui_kit::open_window(options, cx, |window, cx| {
+        cx.new(|cx| panel::AccountPanel::new(store, id, window, cx))
+    }) {
+        Ok((handle, _)) => {
+            #[cfg(target_os = "linux")]
+            if let Ok(Err(error)) = handle.update(cx, |_, window, _| {
+                crate::x11::place_popup(window, bounds.origin)
+            }) {
+                eprintln!("Could not place the account panel: {error:#}");
+            }
+            cx.global_mut::<Shell>().panel = Some((handle, account));
+        }
+        Err(error) => eprintln!("Could not open the account panel: {error:#}"),
+    }
 }
 
 /// Called when the popup loses focus. A tray click that arrives right after the
