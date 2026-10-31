@@ -14,7 +14,7 @@ use time::{OffsetDateTime, UtcOffset};
 
 use super::widgets::{segmented, select};
 use crate::host::{HostClient, Method};
-use crate::model::{AccountView, ago_phrase, compact_reset, tone};
+use crate::model::{AccountView, Pace, ago_phrase, compact_reset, tone, weekday_time};
 use crate::prefs::{self, QuotaDisplay};
 use crate::theme::{Palette, palette};
 use crate::ui::{ButtonKind, button, dialog_footer, note, provider_logo, shown_name, tone_color};
@@ -57,6 +57,8 @@ pub struct QuotaHistory {
     chart: Load<Value>,
     /// Bin under the pointer, by index in the chart's `bins`.
     hovered: Option<usize>,
+    /// Pace of each limit when the dialog opened, by metric id.
+    paces: Vec<(String, Pace)>,
 }
 
 impl QuotaHistory {
@@ -83,6 +85,11 @@ impl QuotaHistory {
             range: Range::Day,
             chart: Load::Loading,
             hovered: None,
+            paces: account
+                .metrics
+                .iter()
+                .filter_map(|m| Some((m.id.clone(), m.pace?)))
+                .collect(),
         };
         this.load_catalog(cx);
         this
@@ -255,7 +262,24 @@ impl QuotaHistory {
         } else {
             ("Lowest observed", lowest)
         };
-        let stat = |label: &str, value: String| {
+        let pace = self
+            .paces
+            .iter()
+            .find(|(id, _)| Some(id) == self.metric.as_ref())
+            .map(|(_, pace)| *pace)
+            .filter(|pace| pace.remaining > 0.);
+        let rate = pace.map(|pace| {
+            if pace.used_per_day > 0. {
+                format!(
+                    "{} {}",
+                    if used { "↗" } else { "↘" },
+                    pace.rate(pace.used_per_day)
+                )
+            } else {
+                "Not enough use yet to estimate a rate.".to_owned()
+            }
+        });
+        let stat = |label: &str, value: String, color: gpui_kit::Hsla, caption: Option<String>| {
             div()
                 .flex()
                 .flex_col()
@@ -271,9 +295,44 @@ impl QuotaHistory {
                     div()
                         .text_size(px(16.))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(p.text_strong)
+                        .text_color(color)
                         .child(value),
                 )
+                .children(caption.map(|caption| {
+                    div()
+                        .text_size(px(11.))
+                        .text_color(p.text_soft)
+                        .child(caption)
+                }))
+        };
+        // With a known window, the forecast says more than the lowest value seen.
+        let last = match pace {
+            Some(pace) => match pace.projected_empty {
+                Some(empty) => stat(
+                    "Forecast",
+                    format!("Runs out {}", weekday_time(empty, self.offset)),
+                    if pace.behind { p.away } else { p.primary },
+                    Some(format!(
+                        "Resets {}",
+                        weekday_time(pace.resets_at, self.offset)
+                    )),
+                ),
+                None => stat(
+                    "Forecast",
+                    "Lasts until reset".to_owned(),
+                    p.primary,
+                    Some(format!(
+                        "About {:.0}% left at reset.",
+                        pace.remaining_at_reset(now).max(1.)
+                    )),
+                ),
+            },
+            None => stat(
+                extreme_label,
+                extreme.map_or_else(|| "—".to_owned(), |v| format!("{v:.0}%")),
+                p.text_strong,
+                None,
+            ),
         };
         div()
             .flex()
@@ -303,6 +362,13 @@ impl QuotaHistory {
                             .text_color(remaining.map_or(p.text_strong, |r| tone_color(tone(r), p)))
                             .child(headline),
                     )
+                    .children(rate.map(|rate| {
+                        div()
+                            .text_size(px(13.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(p.text_strong)
+                            .child(rate)
+                    }))
                     .child(
                         div()
                             .text_size(px(12.))
@@ -310,11 +376,8 @@ impl QuotaHistory {
                             .child(updated),
                     ),
             )
-            .child(stat("Expected reset", reset))
-            .child(stat(
-                extreme_label,
-                extreme.map_or_else(|| "—".to_owned(), |v| format!("{v:.0}%")),
-            ))
+            .child(stat("Expected reset", reset, p.text_strong, None))
+            .child(last)
     }
 
     /// One bar per observed bin, placed by time; stretches nobody observed stay empty.
