@@ -418,7 +418,7 @@ pub fn capability(provider: Provider) -> ProviderCapability {
         usage_platform: "all",
         account_storage_platform: provider.supports_accounts().then_some("macos"),
         account_storage_platforms: if provider.supports_accounts() {
-            vec!["macos", "linux"]
+            vec!["macos", "linux", "windows"]
         } else {
             vec![]
         },
@@ -441,7 +441,10 @@ mod tests {
     #[test]
     fn registry_metadata_and_core_settings_are_exposed_without_environment_names() {
         let factory = capability(Provider::Factory);
-        assert_eq!(factory.account_storage_platforms, vec!["macos", "linux"]);
+        assert_eq!(
+            factory.account_storage_platforms,
+            vec!["macos", "linux", "windows"]
+        );
         assert_eq!(
             factory.auth,
             vec![

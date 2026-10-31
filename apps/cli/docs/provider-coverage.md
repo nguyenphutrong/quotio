@@ -19,50 +19,50 @@ all providers. Windows/Linux runtime checks are deferred.
 | Provider | Authentication | Sources (ownership) | Account storage OS |
 | --- | --- | --- | --- |
 | mock | — | — | — |
-| codex | oauth, native | codex_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| amp | api_key, native | amp_native (borrowed_native) | macos, linux |
-| antigravity | native, owned_token | antigravity_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| synthetic | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| openrouter | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| zai | api_key | quotio_custom_provider (borrowed_proxy), cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| minimax | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| factory | api_key, owned_token, native | factory_native (borrowed_native) | macos, linux |
-| aiand | api_key | — | macos, linux |
-| alibabacodingplan | api_key | — | macos, linux |
+| codex | oauth, native | codex_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| amp | api_key, native | amp_native (borrowed_native) | macos, linux, windows |
+| antigravity | native, owned_token | antigravity_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| synthetic | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| openrouter | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| zai | api_key | quotio_custom_provider (borrowed_proxy), cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| minimax | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| factory | api_key, owned_token, native | factory_native (borrowed_native) | macos, linux, windows |
+| aiand | api_key | — | macos, linux, windows |
+| alibabacodingplan | api_key | — | macos, linux, windows |
 | azureopenai | native | — | — |
-| chutes | api_key | — | macos, linux |
-| claude | oauth, native | claude_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| clawrouter | api_key | — | macos, linux |
-| clinepass | api_key | quotio_custom_provider (borrowed_proxy) | macos, linux |
-| codebuff | api_key | — | macos, linux |
-| copilot | oauth, native | copilot_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| crof | api_key | — | macos, linux |
-| cursor | native | cursor_native (borrowed_native) | macos, linux |
-| deepgram | api_key | — | macos, linux |
-| deepinfra | api_key | — | macos, linux |
-| deepseek | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| devin | api_key | — | macos, linux |
-| devin-desktop | api_key | devin_desktop_native (borrowed_native) | macos, linux |
-| doubao | api_key | — | macos, linux |
-| elevenlabs | api_key | — | macos, linux |
-| fireworks | api_key | — | macos, linux |
+| chutes | api_key | — | macos, linux, windows |
+| claude | oauth, native | claude_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| clawrouter | api_key | — | macos, linux, windows |
+| clinepass | api_key | quotio_custom_provider (borrowed_proxy) | macos, linux, windows |
+| codebuff | api_key | — | macos, linux, windows |
+| copilot | oauth, native | copilot_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| crof | api_key | — | macos, linux, windows |
+| cursor | native | cursor_native (borrowed_native) | macos, linux, windows |
+| deepgram | api_key | — | macos, linux, windows |
+| deepinfra | api_key | — | macos, linux, windows |
+| deepseek | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| devin | api_key | — | macos, linux, windows |
+| devin-desktop | api_key | devin_desktop_native (borrowed_native) | macos, linux, windows |
+| doubao | api_key | — | macos, linux, windows |
+| elevenlabs | api_key | — | macos, linux, windows |
+| fireworks | api_key | — | macos, linux, windows |
 | gemini | native | cli_proxy_auth_file (borrowed_proxy) | — |
-| grok | native, owned_token | grok_native (borrowed_native) | macos, linux |
-| groq | api_key | — | macos, linux |
-| ibmbob | api_key | — | macos, linux |
-| kilo | api_key | — | macos, linux |
-| kimi | api_key | — | macos, linux |
-| kiro | native, owned_token | kiro_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| litellm | api_key | — | macos, linux |
-| llmproxy | api_key | — | macos, linux |
-| moonshot | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| neuralwatt | api_key | — | macos, linux |
-| openai | api_key | — | macos, linux |
-| opencodego | api_key | — | macos, linux |
-| poe | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux |
-| sub2api | api_key | — | macos, linux |
-| venice | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux |
+| grok | native, owned_token | grok_native (borrowed_native) | macos, linux, windows |
+| groq | api_key | — | macos, linux, windows |
+| ibmbob | api_key | — | macos, linux, windows |
+| kilo | api_key | — | macos, linux, windows |
+| kimi | api_key | — | macos, linux, windows |
+| kiro | native, owned_token | kiro_native (borrowed_native), cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| litellm | api_key | — | macos, linux, windows |
+| llmproxy | api_key | — | macos, linux, windows |
+| moonshot | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| neuralwatt | api_key | — | macos, linux, windows |
+| openai | api_key | — | macos, linux, windows |
+| opencodego | api_key | — | macos, linux, windows |
+| poe | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
+| sub2api | api_key | — | macos, linux, windows |
+| venice | api_key | cli_proxy_auth_file (borrowed_proxy) | macos, linux, windows |
 | vertexai | native | cli_proxy_auth_file (borrowed_proxy) | — |
-| warp | api_key | — | macos, linux |
-| xai | api_key | — | macos, linux |
-| zenmux | api_key | — | macos, linux |
+| warp | api_key | — | macos, linux, windows |
+| xai | api_key | — | macos, linux, windows |
+| zenmux | api_key | — | macos, linux, windows |
