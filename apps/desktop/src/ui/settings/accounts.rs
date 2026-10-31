@@ -746,7 +746,12 @@ impl SettingsWindow {
             .into_any_element()
     }
 
-    fn open_history(&mut self, account: &AccountView, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_history(
+        &mut self,
+        account: &AccountView,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let (host, offset) = {
             let store = self.store.read(cx);
             (store.host(), store.offset())

@@ -479,9 +479,16 @@ fn account_card(
         }))
         .cursor_pointer()
         .hover(|s| s.bg(p.bg_weak))
-        .on_click(|_, window, cx| {
-            window.remove_window();
-            crate::app::open_settings(cx);
+        .on_click({
+            // A card that needs fixing goes to Accounts; the rest open their history.
+            let target = account.issue.is_none().then(|| account.clone());
+            move |_, window, cx| {
+                window.remove_window();
+                match target.clone() {
+                    Some(account) => crate::app::open_history(account, cx),
+                    None => crate::app::open_settings(cx),
+                }
+            }
         })
         .child(card_header(account, name, &group, p));
     if let Some(issue) = &account.issue {

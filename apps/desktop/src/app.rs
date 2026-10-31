@@ -192,6 +192,17 @@ pub fn open_settings_at(page: Page, cx: &mut App) {
     }
 }
 
+/// Open an account's quota history over the Accounts page, as the popup card's chevron does.
+pub fn open_history(account: crate::model::AccountView, cx: &mut App) {
+    open_settings_at(Page::Accounts, cx);
+    let shell = cx.global::<Shell>();
+    if let (Some(handle), Some(view)) = (shell.settings, shell.settings_view.clone()) {
+        let _ = handle.update(cx, |_, window, cx| {
+            view.update(cx, |view, cx| view.open_history(&account, window, cx))
+        });
+    }
+}
+
 pub fn refresh(cx: &mut App) {
     let store = cx.global::<Shell>().store.clone();
     store.update(cx, |store, cx| store.refresh(None, cx));
