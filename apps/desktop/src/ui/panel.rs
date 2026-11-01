@@ -108,7 +108,7 @@ pub fn preferred_height(store: &Entity<QuotaStore>, id: &str, cx: &App) -> f32 {
 }
 
 impl Render for AccountPanel {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = palette(cx).clone();
         let Some(account) = find(&self.store, &self.account, cx) else {
             return div();
@@ -197,7 +197,21 @@ impl Render for AccountPanel {
                                 )
                             }),
                     )
-                    .children(cards)
+                    .child(
+                        div()
+                            .id("limits")
+                            // Header, legend and footer stay; the limits scroll.
+                            .max_h(
+                                window.display(cx).map_or(px(560.), |d| {
+                                    d.bounds().size.height - px(2. * 8. + 140.)
+                                }),
+                            )
+                            .overflow_y_scroll()
+                            .flex()
+                            .flex_col()
+                            .gap(px(8.))
+                            .children(cards),
+                    )
                     .when(charts, |s| {
                         s.child(
                             div()

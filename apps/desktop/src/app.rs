@@ -121,6 +121,8 @@ pub fn show_account_panel(account: String, beside: Bounds<Pixels>, top: Pixels, 
         .map(|d| d.bounds())
         .find(|b| b.contains(&beside.origin));
     // Level with the card, unless that would run off the bottom of the screen.
+    // A panel taller than the screen scrolls its limits instead.
+    let height = area.map_or(height, |area| height.min(area.size.height - gap * 2.));
     let y = area.map_or(top, |area| top.min(area.bottom() - height - gap));
     let x = match area {
         Some(area) if beside.right() + gap + width > area.right() => beside.left() - gap - width,
@@ -175,6 +177,12 @@ pub fn note_menu_dismissed(cx: &mut App) {
 }
 
 pub fn toggle_menu(anchor: Option<Point<Pixels>>, cx: &mut App) {
+    let shell = cx.global_mut::<Shell>();
+    // Closing takes the account panel with it.
+    let panel = shell.panel.take().map(|(h, _)| h);
+    if let Some(panel) = panel {
+        let _ = panel.update(cx, |_, window, _| window.remove_window());
+    }
     let shell = cx.global_mut::<Shell>();
     if let Some(handle) = shell.menu.take()
         && handle

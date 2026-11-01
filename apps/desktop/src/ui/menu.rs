@@ -91,9 +91,10 @@ impl QuotaMenu {
                     continue;
                 };
                 let key = (account.id.clone(), metric.id.clone());
-                if self.history.insert(key.clone(), Vec::new()).is_some() {
+                if self.history.contains_key(&key) {
                     continue;
                 }
+                self.history.insert(key.clone(), Vec::new());
                 let request = fetch_history(&host, &key.0, &key.1, pace.window);
                 cx.spawn(async move |this, cx| {
                     let Some(points) = request.await else { return };
