@@ -341,6 +341,42 @@ pub fn open_history(account: crate::model::AccountView, cx: &mut App) {
     }
 }
 
+/// Move a popup after it was opened. GPUI only places windows when it opens them.
+/// ponytail: X11 and Win32 only; Wayland and macOS keep the opening position.
+pub fn move_popup(window: &gpui_kit::Window, origin: Point<Pixels>) {
+    #[cfg(target_os = "linux")]
+    if let Err(error) = crate::x11::place_popup(window, origin) {
+        eprintln!("Could not move the quota menu: {error:#}");
+    }
+    #[cfg(windows)]
+    {
+        use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
+        };
+        if let Ok(handle) = window.window_handle()
+            && let RawWindowHandle::Win32(handle) = handle.as_raw()
+        {
+            let scale = window.scale_factor();
+            let (x, y) = (f32::from(origin.x) * scale, f32::from(origin.y) * scale);
+            // SAFETY: the handle belongs to this live window, and nothing else is changed.
+            unsafe {
+                SetWindowPos(
+                    handle.hwnd.get() as _,
+                    std::ptr::null_mut(),
+                    x.round() as i32,
+                    y.round() as i32,
+                    0,
+                    0,
+                    SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+                );
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    let _ = (window, origin);
+}
+
 pub fn refresh(cx: &mut App) {
     let store = cx.global::<Shell>().store.clone();
     store.update(cx, |store, cx| store.refresh(None, cx));

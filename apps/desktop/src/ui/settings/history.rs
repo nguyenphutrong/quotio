@@ -142,9 +142,25 @@ impl QuotaHistory {
         self.hovered = None;
         let (metric, range) = (metric.clone(), self.range);
         let path = format!("{}/{metric}/{}", self.base(), range.path());
-        let request = self.host.call(Method::GET, path, None);
+        let host = self.host.clone();
         cx.spawn(async move |this, cx| {
-            let result = request.await;
+            // Events come oldest first, 128 to a page; the sheet shows the newest.
+            let result = async {
+                let mut chart = host.call(Method::GET, path.clone(), None).await?;
+                while let Some(cursor) = chart["next_cursor"].as_str().map(str::to_owned) {
+                    let page = host
+                        .call(Method::GET, format!("{path}/events/{cursor}"), None)
+                        .await?;
+                    if let (Some(events), Some(more)) =
+                        (chart["events"].as_array_mut(), page["events"].as_array())
+                    {
+                        events.extend(more.iter().cloned());
+                    }
+                    chart["next_cursor"] = page["next_cursor"].clone();
+                }
+                anyhow::Ok(chart)
+            }
+            .await;
             let _ = this.update(cx, |this, cx| {
                 // Ignore answers for a limit or range the user has moved away from.
                 if this.metric.as_deref() != Some(metric.as_str()) || this.range != range {

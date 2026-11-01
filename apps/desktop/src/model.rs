@@ -191,6 +191,9 @@ pub struct AccountView {
     pub metrics: Vec<MetricView>,
     /// Overall remaining share in `0.0..=1.0`, per the usage calculation preferences.
     pub total: Option<f32>,
+    /// The host's stacked pair for the menu bar, such as session over weekly, as
+    /// remaining shares in `0.0..=1.0`.
+    pub pair: Vec<f32>,
     pub issue: Option<IssueView>,
 }
 
@@ -199,6 +202,8 @@ pub struct ProviderGroup {
     pub provider_id: String,
     pub name: String,
     pub accounts: Vec<AccountView>,
+    /// A refresh failure the host couldn't tie to an account, such as an unreadable login.
+    pub issue: Option<IssueView>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -307,6 +312,29 @@ pub fn overview(
                 provider_id: account.provider_id.clone(),
                 name: providers::display_name(&account.provider_id),
                 accounts: vec![view],
+                issue: None,
+            }),
+        }
+    }
+    for (provider, issue) in &snapshot.provider_issues {
+        let name = providers::display_name(provider);
+        let view = IssueView {
+            title: match issue.code.as_str() {
+                "authentication" => format!("{name} sign-in expired"),
+                "local_credential_storage" => format!("Allow access to the {name} login"),
+                _ => format!("Couldn’t refresh {name}"),
+            },
+            detail: "Quotio couldn’t read a login for this provider.".into(),
+            action: "Open Quotio".into(),
+            fix: Fix::Retry,
+        };
+        match groups.iter_mut().find(|g| &g.provider_id == provider) {
+            Some(group) => group.issue = Some(view),
+            None => groups.push(ProviderGroup {
+                provider_id: provider.clone(),
+                name,
+                accounts: Vec::new(),
+                issue: Some(view),
             }),
         }
     }
@@ -377,6 +405,15 @@ fn account_view(
             .map(|at| compact_ago(now - at)),
         metrics,
         total: None,
+        pair: usage
+            .and_then(|u| u.summary.as_ref())
+            .and_then(|s| {
+                s.pair
+                    .iter()
+                    .map(|m| m.remaining_percent.map(|r| (r / 100.) as f32))
+                    .collect()
+            })
+            .unwrap_or_default(),
         issue,
     }
 }
@@ -553,7 +590,15 @@ fn metric_view(metric: &Metric, now: OffsetDateTime, offset: UtcOffset, used: bo
         .map(|at| weekday_time(at, offset));
     MetricView {
         id: metric.id.clone(),
-        label: metric.display_name.clone(),
+        // Factory's pools share period names (`Weekly`), so keep the pool in front.
+        label: match metric
+            .group
+            .as_deref()
+            .filter(|g| !g.is_empty() && *g != metric.display_name)
+        {
+            Some(group) => format!("{group} · {}", metric.display_name),
+            None => metric.display_name.clone(),
+        },
         value,
         remaining,
         fill: remaining.map(|r| if used { 1. - r } else { r }),

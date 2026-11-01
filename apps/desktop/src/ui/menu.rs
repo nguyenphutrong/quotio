@@ -18,7 +18,9 @@ use time::{Duration, OffsetDateTime, UtcOffset};
 
 use super::{icon, progress, provider_logo, shown_name, tone_color, value_color};
 use crate::host::{HostClient, Method};
-use crate::model::{AccountView, MetricView, Overview, Pace, ProviderGroup, weekday_time};
+use crate::model::{
+    AccountView, IssueView, MetricView, Overview, Pace, ProviderGroup, weekday_time,
+};
 use crate::prefs::Density;
 use crate::store::QuotaStore;
 use crate::theme::{FONT_FAMILY, Palette, palette};
@@ -290,6 +292,20 @@ impl QuotaMenu {
                             })),
                     ),
             )
+            .when_some(group.issue.as_ref(), |s, issue| {
+                s.child(
+                    div()
+                        .id(SharedString::from(format!("issue-{}", group.provider_id)))
+                        .mx(px(14.))
+                        .mb(px(4.))
+                        .cursor_pointer()
+                        .on_click(|_, window, cx| {
+                            window.remove_window();
+                            crate::app::open_settings(cx);
+                        })
+                        .child(issue_banner(issue, &p)),
+                )
+            })
             .children(group.accounts.iter().map(|account| {
                 let name = shown_name(&account.name, cx);
                 match density {
@@ -418,11 +434,20 @@ impl Render for QuotaMenu {
         });
         div()
             // Fit the window to the panel's natural height once it is laid out.
-            .on_children_prepainted(|bounds, window, _| {
+            .on_children_prepainted(|bounds, window, cx| {
                 let Some(panel) = bounds.first() else { return };
                 let viewport = window.viewport_size();
                 if (viewport.height - panel.size.height).abs() > px(1.) {
+                    let frame = window.bounds();
                     window.resize(size(viewport.width, panel.size.height));
+                    // Above a taskbar or bottom panel, keep the bottom edge where it was.
+                    if window
+                        .display(cx)
+                        .is_some_and(|d| frame.center().y > d.bounds().center().y)
+                    {
+                        let top = frame.bottom() - panel.size.height;
+                        crate::app::move_popup(window, point(frame.left(), top));
+                    }
                 }
             })
             .id("quota-menu")
@@ -538,25 +563,7 @@ fn account_card(
         })
         .child(card_header(account, name, &group, p));
     if let Some(issue) = &account.issue {
-        card = card.child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(6.))
-                .px(px(8.))
-                .py(px(6.))
-                .rounded(px(8.))
-                .bg(p.error_alpha)
-                .text_size(px(12.))
-                .text_color(p.error)
-                .child(icon(IconName::CircleAlert, 13., p.error))
-                .child(div().flex_1().child(issue.title.clone()))
-                .child(
-                    div()
-                        .font_weight(FontWeight::MEDIUM)
-                        .child(issue.action.clone()),
-                ),
-        );
+        card = card.child(issue_banner(issue, p));
     } else if let Some((history, now, offset)) = detail {
         // As in the design, only a limit that is running out gets the chart.
         card = card.children(account.metrics.iter().map(|m| match m.pace {
@@ -588,6 +595,27 @@ fn account_card(
         );
     }
     card.into_any_element()
+}
+
+/// A problem and the action that fixes it, such as "Sign-in expired · Sign in again".
+fn issue_banner(issue: &IssueView, p: &Palette) -> impl IntoElement {
+    div()
+        .flex()
+        .items_center()
+        .gap(px(6.))
+        .px(px(8.))
+        .py(px(6.))
+        .rounded(px(8.))
+        .bg(p.error_alpha)
+        .text_size(px(12.))
+        .text_color(p.error)
+        .child(icon(IconName::CircleAlert, 13., p.error))
+        .child(div().flex_1().child(issue.title.clone()))
+        .child(
+            div()
+                .font_weight(FontWeight::MEDIUM)
+                .child(issue.action.clone()),
+        )
 }
 
 fn card_header(

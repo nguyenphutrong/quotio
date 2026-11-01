@@ -77,12 +77,19 @@ pub async fn set(host: Arc<dyn HostClient>, mode: Mode, on: bool, prefs: Prefs) 
         })
     } else {
         let view = host.call(Method::GET, path(), None).await?;
-        let address = view["addresses"]
+        let candidates: Vec<&str> = view["addresses"]
             .as_array()
             .into_iter()
             .flatten()
-            .find(|a| a["mode"] == json!(mode))
-            .and_then(|a| a["address"].as_str())
+            .filter(|a| a["mode"] == json!(mode))
+            .filter_map(|a| a["address"].as_str())
+            .collect();
+        // Docker and VM bridges are private too; prefer the address the default route uses.
+        let routed = routed_address();
+        let address = candidates
+            .iter()
+            .find(|a| routed.as_deref() == Some(**a))
+            .or(candidates.first())
             .with_context(|| {
                 format!(
                     "this computer has no {} address",
@@ -97,6 +104,14 @@ pub async fn set(host: Arc<dyn HostClient>, mode: Mode, on: bool, prefs: Prefs) 
         })
     };
     host.call(Method::PUT, path(), Some(body)).await
+}
+
+/// The local address the system would send from to reach the wider network. Connecting
+/// a UDP socket only picks a route; nothing is sent.
+fn routed_address() -> Option<String> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("192.0.2.1:9").ok()?;
+    Some(socket.local_addr().ok()?.ip().to_string())
 }
 
 /// Reopen the connections that were on when Quotio last ran.

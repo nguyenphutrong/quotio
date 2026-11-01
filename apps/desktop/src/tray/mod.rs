@@ -37,24 +37,12 @@ pub fn item(account: &AccountView, stack_paired: bool, used: bool) -> Item {
             lines: vec![("⚠︎".into(), Tone::Warning)],
         };
     }
-    let percents: Vec<_> = account
-        .metrics
-        .iter()
-        .filter(|m| m.remaining.is_some())
-        .collect();
-    // A session and a weekly limit share one two-line item.
-    if stack_paired && let [top, bottom] = percents[..] {
-        let lowest = if top.remaining <= bottom.remaining {
-            top
-        } else {
-            bottom
-        };
+    // The host picks the pair, such as session over weekly, that shares one two-line item.
+    if stack_paired && let [top, bottom] = account.pair[..] {
+        let line = |r: f32| (percent(r, used), tone(r as f64 * 100.));
         return Item {
-            dot: lowest.tone,
-            lines: vec![
-                (top.value.clone(), top.tone),
-                (bottom.value.clone(), bottom.tone),
-            ],
+            dot: tone(top.min(bottom) as f64 * 100.),
+            lines: vec![line(top), line(bottom)],
         };
     }
     match account.total {

@@ -22,7 +22,7 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::{Context as _, Result, bail};
 use futures::StreamExt as _;
 use gpui_kit::{App, AppContext as _, Entity, QuitMode, point, px};
-use time::{Duration, UtcOffset};
+use time::Duration;
 
 use host::{EmbeddedHost, FixtureClient, HostClient, HostOptions};
 use store::{Clock, QuotaStore};
@@ -66,8 +66,6 @@ fn parse_args() -> Result<Options> {
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let options = parse_args()?;
-    // `time` can read the local offset only while the process is single-threaded.
-    let offset = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
 
     let (client, clock, host): (Arc<dyn HostClient>, Clock, Option<EmbeddedHost>) =
         match &options.fixture {
@@ -106,7 +104,7 @@ fn main() -> Result<()> {
         let appearance = prefs::get(cx).appearance;
         theme::apply(appearance, cx.window_appearance(), cx);
 
-        let store = cx.new(|cx| QuotaStore::new(client, clock, offset, cx));
+        let store = cx.new(|cx| QuotaStore::new(client, clock, cx));
         app::init(store.clone(), cx);
         if options.fixture.is_none() && !options.demo {
             let host = store.read(cx).host();

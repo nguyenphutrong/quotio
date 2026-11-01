@@ -19,7 +19,6 @@ pub enum Clock {
 pub struct QuotaStore {
     host: Arc<dyn HostClient>,
     clock: Clock,
-    offset: UtcOffset,
     /// Tracked accounts, for the tray and popup.
     pub overview: Option<Overview>,
     /// Every account including paused ones, for the settings window.
@@ -32,12 +31,7 @@ pub struct QuotaStore {
 }
 
 impl QuotaStore {
-    pub fn new(
-        host: Arc<dyn HostClient>,
-        clock: Clock,
-        offset: UtcOffset,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(host: Arc<dyn HostClient>, clock: Clock, cx: &mut Context<Self>) -> Self {
         cx.spawn(async move |this, cx| {
             loop {
                 let Ok(fetch) = this.update(cx, |this, _| this.host.snapshot()) else {
@@ -54,7 +48,6 @@ impl QuotaStore {
         Self {
             host,
             clock,
-            offset,
             overview: None,
             all: None,
             snapshot: None,
@@ -86,6 +79,21 @@ impl QuotaStore {
                 {
                     return;
                 }
+                // A merged login keeps its menu-bar place under the account it joined.
+                let pinned = &prefs::get(cx).menu_bar.accounts;
+                if pinned
+                    .iter()
+                    .any(|id| snapshot.account_redirects.contains_key(id))
+                {
+                    let mut remapped: Vec<String> = Vec::new();
+                    for id in pinned {
+                        let id = snapshot.account_redirects.get(id).unwrap_or(id);
+                        if !remapped.contains(id) {
+                            remapped.push(id.clone());
+                        }
+                    }
+                    prefs::update(cx, |prefs| prefs.menu_bar.accounts = remapped);
+                }
                 self.snapshot = Some(snapshot);
                 self.rebuild(cx);
                 self.error = None;
@@ -108,7 +116,7 @@ impl QuotaStore {
         let Some(snapshot) = &self.snapshot else {
             return;
         };
-        let now = self.now();
+        let (now, offset) = (self.now(), self.offset());
         let prefs = prefs::get(cx);
         let (used, total_usage, aggregation) = (
             prefs.quota_display == QuotaDisplay::Used,
@@ -119,7 +127,7 @@ impl QuotaStore {
             model::overview(
                 snapshot,
                 now,
-                self.offset,
+                offset,
                 with_paused,
                 used,
                 total_usage,
@@ -156,9 +164,14 @@ impl QuotaStore {
         self.host.clone()
     }
 
-    /// The local time zone, for times shown to the user.
+    /// The local time zone now, for times shown to the user. Read each time, so a
+    /// daylight-saving change or a new time zone shows without a restart.
+    /// ponytail: one offset for all times shown; a reset across a DST change is an hour off until it passes.
     pub fn offset(&self) -> UtcOffset {
-        self.offset
+        use chrono::Offset as _;
+        // `time` can't read the local zone once threads run; chrono can.
+        let seconds = chrono::Local::now().offset().fix().local_minus_utc();
+        UtcOffset::from_whole_seconds(seconds).unwrap_or(UtcOffset::UTC)
     }
 
     /// Re-read the snapshot after an account change. The host re-collects quota in

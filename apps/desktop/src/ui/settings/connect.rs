@@ -553,19 +553,35 @@ impl ConnectFlow {
             cx,
         );
         self.working = true;
-        self.poll = Some(cx.spawn_in(window, async move |this, cx| {
-            let started: Result<Session> = async {
-                ensure_tracked(&host, &id).await?;
-                let session = host
-                    .call(
-                        Method::POST,
-                        "/v2/auth/sessions".into(),
-                        Some(json!({ "provider": id })),
-                    )
-                    .await?;
-                Ok(serde_json::from_value(session)?)
+        // The host keeps a session it started even if the dialog has moved on (it holds
+        // Codex's callback port), so starting runs on its own and cancels an orphan.
+        let (sent, started) = futures::channel::oneshot::channel::<Result<Session>>();
+        cx.background_spawn({
+            let (host, id) = (host.clone(), id.clone());
+            async move {
+                let started: Result<Session> = async {
+                    ensure_tracked(&host, &id).await?;
+                    let session = host
+                        .call(
+                            Method::POST,
+                            "/v2/auth/sessions".into(),
+                            Some(json!({ "provider": id })),
+                        )
+                        .await?;
+                    Ok(serde_json::from_value(session)?)
+                }
+                .await;
+                if let Err(Ok(orphan)) = sent.send(started) {
+                    let path = format!("/v2/auth/sessions/{}", orphan.id);
+                    let _ = host.call(Method::DELETE, path, None).await;
+                }
             }
-            .await;
+        })
+        .detach();
+        self.poll = Some(cx.spawn_in(window, async move |this, cx| {
+            let started = started
+                .await
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("the sign-in did not start")));
             let Ok(Some(mut session)) = this.update(cx, |this, cx| {
                 this.working = false;
                 cx.notify();

@@ -549,22 +549,46 @@ impl SettingsWindow {
                             })),
                     ),
             )
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .rounded(px(16.))
-                    .border_1()
-                    .border_color(p.stroke_soft)
-                    .overflow_hidden()
-                    .children(
-                        group
-                            .accounts
-                            .iter()
-                            .enumerate()
-                            .map(|(i, account)| self.account_row(account, i + 1 < count, p, cx)),
-                    ),
-            )
+            .when_some(group.issue.as_ref(), |s, issue| {
+                s.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(2.))
+                        .px(px(12.))
+                        .py(px(10.))
+                        .rounded(px(12.))
+                        .bg(p.error_alpha)
+                        .text_size(px(13.))
+                        .text_color(p.error)
+                        .child(
+                            div()
+                                .font_weight(FontWeight::MEDIUM)
+                                .child(issue.title.clone()),
+                        )
+                        .child(
+                            div()
+                                .text_color(p.text_sub)
+                                .child(format!("{} Refresh to try again.", issue.detail)),
+                        ),
+                )
+            })
+            .when(count > 0, |s| {
+                s.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .rounded(px(16.))
+                        .border_1()
+                        .border_color(p.stroke_soft)
+                        .overflow_hidden()
+                        .children(
+                            group.accounts.iter().enumerate().map(|(i, account)| {
+                                self.account_row(account, i + 1 < count, p, cx)
+                            }),
+                        ),
+                )
+            })
             .into_any_element()
     }
 

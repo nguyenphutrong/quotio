@@ -14,10 +14,13 @@ mod widgets;
 
 use std::collections::HashSet;
 
+use futures::FutureExt as _;
+use futures::future::Shared;
+
 use gpui_kit::assets::IconName;
 use gpui_kit::{
     AppContext as _, Context, Decorations, Entity, FontWeight, InteractiveElement, IntoElement,
-    ParentElement, Render, StatefulInteractiveElement, Styled, Subscription, Window,
+    ParentElement, Render, StatefulInteractiveElement, Styled, Subscription, Task, Window,
     WindowControlArea, div, prelude::FluentBuilder as _, px, relative, svg,
 };
 
@@ -104,6 +107,8 @@ pub struct SettingsWindow {
     catalog: Option<Vec<crate::catalog::Provider>>,
     /// `GET /v2/settings`, updated as soon as the user changes something.
     host_settings: Option<Value>,
+    /// The last settings write; the next one waits for it, so writes land in the user's order.
+    settings_write: Option<Shared<Task<()>>>,
     /// `GET /v2/discovery`: when Quotio last looked for logins and what it found.
     discovery: Option<Value>,
     launch_at_login: bool,
@@ -165,6 +170,7 @@ impl SettingsWindow {
             dialog_events: None,
             catalog: None,
             host_settings: None,
+            settings_write: None,
             discovery: None,
             launch_at_login: crate::autostart::enabled(),
             scanning: false,
@@ -218,7 +224,11 @@ impl SettingsWindow {
         }
         cx.notify();
         let host = self.store.read(cx).host();
-        cx.spawn_in(window, async move |this, cx| {
+        let previous = self.settings_write.take();
+        let write = cx.spawn_in(window, async move |this, cx| {
+            if let Some(previous) = previous {
+                previous.await;
+            }
             // Another client may have saved in between; a conflict re-reads once.
             let mut attempts = 0;
             let result = loop {
@@ -251,8 +261,8 @@ impl SettingsWindow {
                     this.load_host_settings(cx);
                 }
             });
-        })
-        .detach();
+        });
+        self.settings_write = Some(write.shared());
     }
 
     fn sidebar(&self, attention: usize, cx: &mut Context<Self>) -> impl IntoElement {
