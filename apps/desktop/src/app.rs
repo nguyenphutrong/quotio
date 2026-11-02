@@ -350,11 +350,12 @@ pub fn move_popup(window: &gpui_kit::Window, origin: Point<Pixels>) {
     }
     #[cfg(windows)]
     {
-        use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
         use windows_sys::Win32::UI::WindowsAndMessaging::{
             SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
         };
-        if let Ok(handle) = window.window_handle()
+        // `Window` has its own `window_handle`; this is the raw platform handle.
+        if let Ok(handle) = HasWindowHandle::window_handle(window)
             && let RawWindowHandle::Win32(handle) = handle.as_raw()
         {
             let scale = window.scale_factor();
