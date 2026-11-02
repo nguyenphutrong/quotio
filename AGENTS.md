@@ -25,6 +25,7 @@ xcodebuild -project apps/macos/Quotio.xcodeproj -scheme Quotio -configuration De
 cargo test --manifest-path apps/cli/Cargo.toml --locked --all-features
 ```
 
-Use `v*` tags for macOS releases and `cli-v*` tags for CLI releases. Preserve
-both imported histories; never rewrite shared history or reuse one product's tag
-namespace for the other.
+Use `v*` tags for macOS releases, `cli-v*` tags for CLI releases and
+`desktop-v*` tags for the Windows and Linux desktop app. Preserve both imported
+histories; never rewrite shared history or reuse one product's tag namespace for
+another.
