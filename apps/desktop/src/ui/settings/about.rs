@@ -1,5 +1,6 @@
 //! About page, from the Wonder artboard "Page - Quotio About And Updates". The
-//! desktop preview has no self-updater, so Updates points to the releases page.
+//! Windows and Linux builds update themselves; elsewhere Updates points to the
+//! releases page.
 use gpui_kit::assets::IconName;
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::component::notification::Notification;
@@ -12,7 +13,8 @@ use gpui_kit::{
 use super::SettingsWindow;
 use super::widgets::{row, rows, section, tray_name};
 use crate::theme::{Palette, palette};
-use crate::ui::{ButtonKind, button_with_icon, icon};
+use crate::ui::{ButtonKind, button, button_with_icon, icon};
+use crate::updater::{self, State};
 
 const REPOSITORY: &str = "https://github.com/nguyenphutrong/quotio";
 const RELEASES: &str = "https://github.com/nguyenphutrong/quotio/releases";
@@ -105,7 +107,7 @@ impl SettingsWindow {
                     ),
             );
 
-        let updates = row(
+        let releases = row(
             "Latest release",
             Some("See what’s new and download the newest build.".into()),
             button_with_icon(
@@ -118,6 +120,57 @@ impl SettingsWindow {
             .on_click(|_, _, cx| cx.open_url(RELEASES)),
             &p,
         );
+        let mut updates = Vec::new();
+        if updater::ASSET.is_some() {
+            let check = |label: &'static str| {
+                button("check-updates", label, ButtonKind::Secondary, &p)
+                    .on_click(|_, _, cx| updater::check(cx))
+                    .into_any_element()
+            };
+            let busy = |label: &'static str| {
+                button("check-updates", label, ButtonKind::Secondary, &p)
+                    .opacity(0.6)
+                    .cursor_default()
+                    .into_any_element()
+            };
+            let (help, control) = match updater::state(cx).clone() {
+                State::Idle => (
+                    "Quotio checks when it starts.".to_owned(),
+                    check("Check now"),
+                ),
+                State::Checking => ("Checking GitHub releases…".to_owned(), busy("Checking…")),
+                State::UpToDate => (
+                    format!("Version {version} is the newest."),
+                    check("Check now"),
+                ),
+                State::Available(release) => (
+                    format!(
+                        "Version {} is ready. Quotio restarts to finish.",
+                        release.version
+                    ),
+                    button(
+                        "install-update",
+                        "Install and restart",
+                        ButtonKind::Primary,
+                        &p,
+                    )
+                    .on_click(move |_, _, cx| updater::install(release.clone(), cx))
+                    .into_any_element(),
+                ),
+                State::Installing => (
+                    "Downloading and verifying the update…".to_owned(),
+                    busy("Installing…"),
+                ),
+                State::Failed(error) => (error, check("Try again")),
+            };
+            updates.push(row("Software update", Some(help.into()), control, &p));
+        }
+        updates.push(releases);
+        let updates_help = if updater::ASSET.is_some() {
+            "Quotio installs signed builds from GitHub releases."
+        } else {
+            "Desktop builds don’t update themselves yet."
+        };
 
         let links = div()
             .flex()
@@ -149,12 +202,7 @@ impl SettingsWindow {
             .flex_col()
             .gap(px(24.))
             .child(hero)
-            .child(section(
-                "Updates",
-                "Desktop builds don’t update themselves yet.",
-                rows([updates], &p),
-                &p,
-            ))
+            .child(section("Updates", updates_help, rows(updates, &p), &p))
             .child(section("Project", "Quotio is open source.", links, &p).border_b_0())
             .into_any_element()
     }
