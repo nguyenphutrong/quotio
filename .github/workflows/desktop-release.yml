@@ -1,0 +1,126 @@
+name: Desktop release
+
+# Builds the Windows and Linux desktop app and, when dispatched, publishes a
+# `desktop-v*` prerelease with Ed25519 signatures the in-app updater checks.
+# macOS keeps shipping the Swift app through macos-release.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version matching apps/desktop/Cargo.toml, without desktop-v (for example 0.1.0)
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - '.github/workflows/desktop-release.yml'
+
+permissions: {}
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+            binary: quotio-desktop.exe
+            asset: quotio-desktop-x86_64-pc-windows-msvc.exe
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            binary: quotio-desktop
+            asset: quotio-desktop-x86_64-unknown-linux-gnu
+    defaults:
+      run:
+        working-directory: apps/desktop
+    env:
+      CARGO_TERM_COLOR: never
+      VERSION: ${{ inputs.version }}
+      TARGET: ${{ matrix.target }}
+      BINARY: ${{ matrix.binary }}
+      ASSET: ${{ matrix.asset }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate version
+        if: github.event_name == 'workflow_dispatch' && runner.os == 'Linux'
+        run: |
+          python3 - <<'PY'
+          import os, re, tomllib
+          version = os.environ['VERSION']
+          assert re.fullmatch(r'\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?', version)
+          assert tomllib.load(open('Cargo.toml', 'rb'))['package']['version'] == version
+          PY
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal --target "$TARGET"
+      - name: Install Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev libxcb1-dev \
+            libwayland-dev libvulkan-dev libfontconfig-dev libfreetype-dev
+      - name: Build
+        run: |
+          cargo +stable build --locked --release --target "$TARGET"
+          mkdir -p artifacts
+          cp "target/$TARGET/release/$BINARY" "artifacts/$ASSET"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: desktop-${{ matrix.target }}
+          path: apps/desktop/artifacts/*
+          if-no-files-found: error
+          retention-days: 7
+  release:
+    name: Publish signed prerelease
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: release
+    timeout-minutes: 10
+    permissions:
+      contents: write # Required to create the GitHub release.
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: desktop-*
+          path: artifacts
+          merge-multiple: true
+      - name: Sign executables
+        env:
+          DESKTOP_UPDATE_KEY: ${{ secrets.DESKTOP_UPDATE_KEY }}
+        run: |
+          : "${DESKTOP_UPDATE_KEY:?Set the DESKTOP_UPDATE_KEY secret to the Ed25519 private key PEM}"
+          key=$(mktemp)
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$DESKTOP_UPDATE_KEY" > "$key"
+          # Must match PUBLIC_KEY in apps/desktop/src/updater.rs, or every client rejects the update.
+          public=$(openssl pkey -in "$key" -pubout -outform DER | tail -c 32 | od -An -tx1 | tr -d ' \n')
+          test "$public" = f0b16f944f287150a3ddb80fadfd6fa70a28b849754ee353aaec9502d77b1b15
+          cd artifacts
+          for file in quotio-desktop-*; do
+            openssl pkeyutl -sign -inkey "$key" -rawin -in "$file" -out "$file.sig"
+          done
+          sha256sum quotio-desktop-* > SHA256SUMS
+      - name: Create GitHub prerelease
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]
+          gh release create "desktop-v$VERSION" artifacts/* --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "Quotio Desktop v$VERSION" --generate-notes
