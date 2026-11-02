@@ -5826,6 +5826,7 @@ dependencies = [
  "reqwest",
  "ring",
  "rust-embed",
+ "semver",
  "serde",
  "serde_json",
  "time",
