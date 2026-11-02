@@ -27,6 +27,9 @@ use crate::ui::{
 };
 use crate::{prefs, providers};
 
+/// What a dialog's confirm button runs.
+type Save = Rc<dyn Fn(&mut Window, &mut App)>;
+
 /// Groups and accounts that match the search: a provider name match keeps the
 /// whole group, otherwise only accounts whose name matches stay.
 pub(super) fn filter(overview: &Overview, query: &str) -> Vec<ProviderGroup> {
@@ -1149,7 +1152,7 @@ impl SettingsWindow {
                 },
             )
         };
-        let save: Rc<dyn Fn(&mut Window, &mut App)> = {
+        let save: Save = {
             let (submit, input) = (submit.clone(), input.clone());
             Rc::new(move |window, cx| {
                 let label = input.read(cx).value().trim().to_owned();
@@ -1206,7 +1209,7 @@ impl SettingsWindow {
                 .masked(true)
                 .placeholder("Paste the new key")
         });
-        let save: Rc<dyn Fn(&mut Window, &mut App)> = {
+        let save: Save = {
             let (this, input, account) = (cx.entity().downgrade(), input.clone(), account.clone());
             Rc::new(move |window, cx| {
                 let key = input.read(cx).value().trim().to_owned();
@@ -1260,7 +1263,7 @@ impl SettingsWindow {
     fn submit_on_enter(
         &mut self,
         input: &Entity<InputState>,
-        submit: Rc<dyn Fn(&mut Window, &mut App)>,
+        submit: Save,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {

@@ -45,7 +45,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal --component rustfmt
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
       - name: Install Linux libraries
         if: runner.os == 'Linux'
         run: |
@@ -56,7 +56,7 @@ jobs:
       - name: Check formatting
         if: runner.os == 'Linux'
         run: cargo +stable fmt --check
-      - name: Build
-        run: cargo +stable build --locked
+      - name: Lint
+        run: cargo +stable clippy --locked --all-targets -- -D warnings
       - name: Test
         run: cargo +stable test --locked

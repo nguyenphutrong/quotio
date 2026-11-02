@@ -97,6 +97,9 @@ pub struct Connected;
 
 impl EventEmitter<Connected> for ConnectFlow {}
 
+/// What a step's primary button runs.
+type StepAction = fn(&mut ConnectFlow, &mut Window, &mut Context<ConnectFlow>);
+
 impl ConnectFlow {
     /// `provider` skips the picker, e.g. for "Sign in again".
     pub fn new(
@@ -1177,20 +1180,19 @@ impl ConnectFlow {
     }
 
     fn footer(&self, p: &Palette, cx: &mut Context<Self>) -> impl IntoElement {
-        let primary: Option<(&'static str, fn(&mut Self, &mut Window, &mut Context<Self>))> =
-            match &self.step {
-                Step::ApiKey { .. } => Some(("Add account", Self::save_api_key)),
-                Step::Folder { .. } => Some(("Add login", |this, window, cx| {
-                    this.save_folder(None, window, cx)
-                })),
-                Step::Browser {
-                    session: Some(session),
-                    ..
-                } if session.workflow == "manual_code" && session.status == "waiting" => {
-                    Some(("Complete", Self::send_code))
-                }
-                _ => None,
-            };
+        let primary: Option<(&'static str, StepAction)> = match &self.step {
+            Step::ApiKey { .. } => Some(("Add account", Self::save_api_key)),
+            Step::Folder { .. } => Some(("Add login", |this, window, cx| {
+                this.save_folder(None, window, cx)
+            })),
+            Step::Browser {
+                session: Some(session),
+                ..
+            } if session.workflow == "manual_code" && session.status == "waiting" => {
+                Some(("Complete", Self::send_code))
+            }
+            _ => None,
+        };
         let done = matches!(
             &self.step,
             Step::Scan {
