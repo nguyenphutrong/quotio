@@ -1,5 +1,7 @@
 //! Quotio for macOS, Windows and Linux: a tray popup and a settings window on GPUI,
 //! backed by the Rust host from `apps/cli` running in this process.
+// Release builds on Windows open no console window.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 mod app;
 mod assets;
 mod autostart;
@@ -14,6 +16,7 @@ mod store;
 mod theme;
 mod tray;
 mod ui;
+mod updater;
 #[cfg(target_os = "linux")]
 mod x11;
 
@@ -106,6 +109,7 @@ fn main() -> Result<()> {
 
         let store = cx.new(|cx| QuotaStore::new(client, clock, cx));
         app::init(store.clone(), cx);
+        updater::init(runtime.clone(), options.fixture.is_none(), cx);
         if options.fixture.is_none() && !options.demo {
             let host = store.read(cx).host();
             let saved = prefs::get(cx).sharing.clone();
@@ -169,6 +173,9 @@ fn main() -> Result<()> {
     });
     drop(host);
     drop(tray_runtime);
+    if let Some(exe) = updater::RESTART.get() {
+        std::process::Command::new(exe).spawn()?;
+    }
     Ok(())
 }
 
