@@ -44,6 +44,8 @@ jobs:
             asset: quotio-desktop-x86_64-unknown-linux-gnu
     defaults:
       run:
+        # Job defaults replace the workflow's; without this Windows runs pwsh.
+        shell: bash
         working-directory: apps/desktop
     env:
       CARGO_TERM_COLOR: never
