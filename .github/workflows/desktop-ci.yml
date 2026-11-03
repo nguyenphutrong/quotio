@@ -1,0 +1,62 @@
+name: Desktop checks
+
+on:
+  pull_request:
+    paths:
+      - 'apps/desktop/**'
+      - 'apps/cli/**'
+      - '.github/workflows/desktop-ci.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'apps/desktop/**'
+      - 'apps/cli/**'
+      - '.github/workflows/desktop-ci.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: apps/desktop
+    shell: bash
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Desktop on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04, windows-2025]
+    env:
+      CARGO_TERM_COLOR: never
+      RUST_BACKTRACE: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+      - name: Install Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev libxcb1-dev \
+            libwayland-dev libvulkan-dev libfontconfig-dev libfreetype-dev
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: cargo +stable fmt --check
+      - name: Lint
+        run: cargo +stable clippy --locked --all-targets -- -D warnings
+      - name: Test
+        run: cargo +stable test --locked

@@ -3994,7 +3994,8 @@
               "type": "string",
               "enum": [
                 "macos",
-                "linux"
+                "linux",
+                "windows"
               ]
             },
             "description": "Supported saved-account storage platforms. Linux requires a separately supplied vault master key."
