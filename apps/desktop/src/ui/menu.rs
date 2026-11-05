@@ -440,9 +440,9 @@ impl Render for QuotaMenu {
         };
         let empty = overview.as_ref().is_some_and(|o| o.groups.is_empty());
         // Long account lists scroll inside the popup instead of leaving the screen.
-        let max_groups = window.display(cx).map_or(px(560.), |d| {
-            d.bounds().size.height * 0.85 - px(CHROME_HEIGHT)
-        });
+        let max_height = window
+            .display(cx)
+            .map_or(px(560. + CHROME_HEIGHT), |d| d.bounds().size.height * 0.85);
         div()
             // Fit the window to the panel's natural height once it is laid out.
             .on_children_prepainted(|bounds, window, cx| {
@@ -476,15 +476,17 @@ impl Render for QuotaMenu {
                     .border_color(p.stroke_soft)
                     .rounded(px(14.))
                     .p(px(6.))
+                    .max_h(max_height)
                     .overflow_hidden()
-                    .child(self.header(overview.as_ref(), cx))
+                    .child(div().flex_none().child(self.header(overview.as_ref(), cx)))
                     .when_some(overview.as_ref(), |s, overview| {
-                        s.child(self.chips(overview, cx))
+                        s.child(div().flex_none().child(self.chips(overview, cx)))
                     })
+                    // Only the groups shrink, however many rows the chips wrap to.
                     .child(
                         div()
                             .id("groups")
-                            .max_h(max_groups)
+                            .min_h_0()
                             .overflow_y_scroll()
                             .flex()
                             .flex_col()
@@ -501,7 +503,7 @@ impl Render for QuotaMenu {
                                 )
                             }),
                     )
-                    .child(self.footer(cx)),
+                    .child(div().flex_none().child(self.footer(cx))),
             )
     }
 }
