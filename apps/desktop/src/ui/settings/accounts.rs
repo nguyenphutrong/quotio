@@ -403,8 +403,10 @@ impl SettingsWindow {
     fn vault_banner(&self, p: &Palette, cx: &mut Context<Self>) -> impl IntoElement {
         let help = if cfg!(target_os = "linux") {
             "Quotio keeps sign-ins in your keyring. Unlock it, or set QUOTIO_VAULT_KEY_FILE."
-        } else {
+        } else if cfg!(windows) {
             "Quotio keeps sign-ins in Windows Credential Manager."
+        } else {
+            "Quotio keeps sign-ins in your Keychain."
         };
         div()
             .flex()
@@ -1069,6 +1071,8 @@ impl SettingsWindow {
                     if result["failures"].as_u64().unwrap_or(0) > 0 {
                         let hint = if cfg!(windows) {
                             "check Windows Credential Manager"
+                        } else if cfg!(target_os = "macos") {
+                            "allow Quotio in Keychain Access"
                         } else {
                             "unlock your keyring"
                         };
