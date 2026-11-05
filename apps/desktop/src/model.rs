@@ -360,6 +360,8 @@ fn account_view(
         (None, Some(usage)) => usage
             .metrics
             .iter()
+            // A metric with no data (Codex "Extra Usage") is just an empty "—" row.
+            .filter(|m| !matches!(m.quota, Quota::Unknown))
             .map(|m| metric_view(m, now, offset, used))
             .collect(),
         _ => Vec::new(),
