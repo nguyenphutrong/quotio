@@ -3,16 +3,19 @@
 //! Versions live in `<data dir>/proxy/v<version>/`; the active one is a preference.
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, Result, anyhow, bail};
-use gpui_kit::{App, Global};
+use gpui_kit::{App, Global, SystemNotification, Task};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
 const RELEASES: &str = "https://api.github.com/repos/router-for-me/CLIProxyAPI/releases";
 /// Installed versions kept on disk, the active one included.
 const KEEP: usize = 3;
+/// The running proxy's process id, so a proxy left behind by a crashed Quotio can be
+/// stopped before the next start takes its port.
+const PID_FILE: &str = "proxy.pid";
 const BINARY: &str = if cfg!(windows) {
     "cli-proxy-api.exe"
 } else {
@@ -56,6 +59,13 @@ pub struct Proxy {
     /// is written there again before every start.
     pub key: String,
     child: Option<Child>,
+    started: Instant,
+    /// Unexpected exits in a row; reset once the proxy has run for a minute.
+    crashes: u32,
+    /// The restart after a crash, cancelled when dropped.
+    restarting: Option<Task<()>>,
+    /// The health check killed the proxy because it stopped answering.
+    hung: bool,
     /// What is in progress, such as "Downloading 8.0.56…".
     pub busy: Option<String>,
     pub error: Option<String>,
@@ -109,6 +119,10 @@ pub fn init(runtime: tokio::runtime::Handle, live: bool, cx: &mut App) {
         dir,
         key,
         child: None,
+        started: Instant::now(),
+        crashes: 0,
+        restarting: None,
+        hung: false,
         busy: None,
         error: None,
         upgrade: None,
@@ -120,18 +134,56 @@ pub fn init(runtime: tokio::runtime::Handle, live: bool, cx: &mut App) {
         async {}
     })
     .detach();
-    // Notice when the proxy exits on its own, such as when its port is taken.
+    // Notice when the proxy exits on its own, and bring it back.
     cx.spawn(async move |cx| {
         loop {
             cx.background_executor().timer(Duration::from_secs(2)).await;
+            cx.update(exited);
+        }
+    })
+    .detach();
+    // A proxy that runs but no longer answers is killed, so the loop above restarts it.
+    cx.spawn(async move |cx| {
+        let mut failures = 0;
+        loop {
+            cx.background_executor()
+                .timer(Duration::from_secs(30))
+                .await;
+            let probe = cx.update(|cx| {
+                let proxy = get(cx);
+                (proxy.child.is_some() && proxy.started.elapsed() > Duration::from_secs(30)).then(
+                    || {
+                        (
+                            proxy.started,
+                            proxy
+                                .runtime
+                                .spawn(answers(proxy.http.clone(), endpoint(cx))),
+                        )
+                    },
+                )
+            });
+            let Some((started, probe)) = probe else {
+                failures = 0;
+                continue;
+            };
+            if probe.await.unwrap_or(false) {
+                failures = 0;
+                continue;
+            }
+            failures += 1;
+            if failures < 3 {
+                continue;
+            }
+            failures = 0;
             cx.update(|cx| {
                 let proxy = cx.global_mut::<Proxy>();
-                let Some(status) = proxy.child.as_mut().and_then(|c| c.try_wait().ok()?) else {
-                    return;
-                };
-                proxy.child = None;
-                proxy.error = Some(format!("CLIProxyAPI stopped ({status})."));
-                cx.refresh_windows();
+                // Only the same run that failed three checks in a row.
+                if proxy.started == started
+                    && let Some(child) = proxy.child.as_mut()
+                {
+                    proxy.hung = true;
+                    let _ = child.kill();
+                }
             });
         }
     })
@@ -145,7 +197,65 @@ pub fn init(runtime: tokio::runtime::Handle, live: bool, cx: &mut App) {
     }
 }
 
+/// After an unexpected exit, restart up to three times, waiting 2, 4 and 8 seconds.
+fn exited(cx: &mut App) {
+    let proxy = cx.global_mut::<Proxy>();
+    let Some(status) = proxy.child.as_mut().and_then(|c| c.try_wait().ok()?) else {
+        return;
+    };
+    proxy.child = None;
+    let _ = std::fs::remove_file(proxy.dir.join(PID_FILE));
+    let status = if std::mem::take(&mut proxy.hung) {
+        "it stopped responding".to_owned()
+    } else {
+        status.to_string()
+    };
+    if proxy.started.elapsed() > Duration::from_secs(60) {
+        proxy.crashes = 0;
+    }
+    proxy.crashes += 1;
+    if proxy.crashes <= 3 {
+        let delay = Duration::from_secs(1 << proxy.crashes);
+        proxy.error = Some(format!(
+            "CLIProxyAPI stopped ({status}); restarting in {} s…",
+            delay.as_secs()
+        ));
+        let task = cx.spawn(async move |cx| {
+            cx.background_executor().timer(delay).await;
+            cx.update(launch);
+        });
+        cx.global_mut::<Proxy>().restarting = Some(task);
+    } else {
+        let port = crate::prefs::get(cx).proxy.port;
+        let message =
+            format!("CLIProxyAPI keeps stopping ({status}). Check that port {port} is free.");
+        cx.global_mut::<Proxy>().error = Some(message.clone());
+        cx.show_system_notification(SystemNotification {
+            tag: "proxy-crashed".into(),
+            title: "CLIProxyAPI stopped".into(),
+            body: message.into(),
+            actions: Vec::new(),
+        });
+    }
+    cx.refresh_windows();
+}
+
 pub fn start(cx: &mut App) {
+    cx.global_mut::<Proxy>().crashes = 0;
+    launch(cx);
+}
+
+/// Whether the proxy answers HTTP at all; any status counts, a hang does not.
+async fn answers(http: reqwest::Client, endpoint: String) -> bool {
+    http.get(format!("{endpoint}/v0/management/config"))
+        .timeout(Duration::from_secs(3))
+        .send()
+        .await
+        .is_ok()
+}
+
+fn launch(cx: &mut App) {
+    cx.global_mut::<Proxy>().restarting = None;
     if running(cx) {
         return;
     }
@@ -154,6 +264,7 @@ pub fn start(cx: &mut App) {
     match result {
         Ok(child) => {
             proxy.child = Some(child);
+            proxy.started = Instant::now();
             proxy.error = None;
         }
         Err(error) => proxy.error = Some(format!("{error:#}")),
@@ -162,10 +273,13 @@ pub fn start(cx: &mut App) {
 }
 
 pub fn stop(cx: &mut App) {
-    if let Some(mut child) = cx.global_mut::<Proxy>().child.take() {
+    let proxy = cx.global_mut::<Proxy>();
+    proxy.restarting = None;
+    if let Some(mut child) = proxy.child.take() {
         // ponytail: kills at once; send SIGTERM first if the proxy ever needs to flush.
         let _ = child.kill();
         let _ = child.wait();
+        let _ = std::fs::remove_file(proxy.dir.join(PID_FILE));
     }
     cx.refresh_windows();
 }
@@ -463,11 +577,64 @@ fn spawn(proxy: &Proxy, prefs: &Prefs) -> Result<Child> {
         .context("Install CLIProxyAPI first.")?;
     let binary = proxy.dir.join(format!("v{version}")).join(BINARY);
     let config = write_config(&proxy.dir, prefs.port, &proxy.key)?;
-    let mut command = Command::new(&binary);
-    command
+    let pid_file = proxy.dir.join(PID_FILE);
+    stop_leftover(&pid_file);
+    let child = quiet(&binary)
         .arg("-config")
         .arg(&config)
         .current_dir(&proxy.dir)
+        .spawn()
+        .with_context(|| format!("Couldn’t start {}", binary.display()))?;
+    std::fs::write(&pid_file, child.id().to_string())?;
+    Ok(child)
+}
+
+/// Stop the proxy a crashed or killed Quotio left running, if that process id still
+/// belongs to one of Quotio's proxy executables.
+fn stop_leftover(pid_file: &Path) {
+    let Some(pid) = std::fs::read_to_string(pid_file)
+        .ok()
+        .and_then(|pid| pid.trim().parse::<u32>().ok())
+    else {
+        return;
+    };
+    let _ = std::fs::remove_file(pid_file);
+    let pid = pid.to_string();
+    let filter = format!("PID eq {pid}");
+    // Windows lists only the image name; elsewhere the command line shows the path.
+    let (list, ours, kill) = if cfg!(windows) {
+        (
+            vec!["tasklist", "/FI", &filter, "/FO", "CSV", "/NH"],
+            format!("\"{BINARY}\""),
+            vec!["taskkill", "/F", "/PID", &pid],
+        )
+    } else {
+        let dir = pid_file.parent().unwrap_or(pid_file).display().to_string();
+        (
+            vec!["ps", "-p", &pid, "-o", "command="],
+            dir,
+            vec!["kill", "-9", &pid],
+        )
+    };
+    let Ok(output) = quiet(list[0])
+        .args(&list[1..])
+        .stdout(Stdio::piped())
+        .output()
+    else {
+        return;
+    };
+    if !String::from_utf8_lossy(&output.stdout).contains(&ours) {
+        return;
+    }
+    let _ = quiet(kill[0]).args(&kill[1..]).status();
+    // Give the system a moment to release the port.
+    std::thread::sleep(Duration::from_millis(300));
+}
+
+/// A command with no console window and no standard streams.
+fn quiet(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    let mut command = Command::new(program);
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -478,8 +645,6 @@ fn spawn(proxy: &Proxy, prefs: &Prefs) -> Result<Child> {
         command.creation_flags(CREATE_NO_WINDOW);
     }
     command
-        .spawn()
-        .with_context(|| format!("Couldn’t start {}", binary.display()))
 }
 
 /// Create the v8 config on first use; later, set only the port and management key
