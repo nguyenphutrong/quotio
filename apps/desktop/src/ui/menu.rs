@@ -736,14 +736,14 @@ fn metric_tile(metric: &MetricView, group: &SharedString, p: &Palette) -> impl I
 fn paced_bar(metric: &MetricView, height: f32, p: &Palette) -> impl IntoElement {
     div()
         .relative()
-        .py(px(3.))
         .child(progress(metric.fill, metric.tone, px(height), p))
+        // The tick overhangs the bar instead of padding it, so tiles keep the design's height.
         .when_some(metric.tick, |s, tick| {
             s.child(
                 div()
                     .absolute()
-                    .top_0()
-                    .bottom_0()
+                    .top(px(-3.))
+                    .bottom(px(-3.))
                     .left(relative(tick.clamp(0., 1.)))
                     .ml(px(-1.))
                     .w(px(2.))
@@ -1196,11 +1196,11 @@ pub fn preferred_height_for(overview: Option<&Overview>, density: Density) -> f3
                                 .iter()
                                 .filter(|m| m.pace.is_some_and(|p| p.behind))
                                 .count();
-                            46. + n as f32 * 71. + burning as f32 * 110.
+                            46. + n as f32 * 65. + burning as f32 * 110.
                         }
                         (Density::Comfortable, None, n) => {
                             let rows = n.div_ceil(2) as f32;
-                            50. + rows * 68. + (rows - 1.) * 8.
+                            50. + rows * 62. + (rows - 1.) * 8.
                         }
                     },
                 )
