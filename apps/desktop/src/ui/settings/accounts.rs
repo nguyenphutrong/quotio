@@ -467,7 +467,11 @@ impl SettingsWindow {
                                 Err(error) => Err(error),
                             };
                             let _ = this.update_in(cx, |this, window, cx| {
-                                this.store.update(cx, |store, cx| store.reload(cx));
+                                // Accounts unlocked just now have no quota yet; fetch it.
+                                this.store.update(cx, |store, cx| match result {
+                                    Ok(()) => store.refresh(None, cx),
+                                    Err(_) => store.reload(cx),
+                                });
                                 if let Err(error) = result {
                                     window.push_notification(
                                         Notification::error(format!(
