@@ -84,6 +84,31 @@ pub fn running(cx: &App) -> bool {
     get(cx).child.is_some()
 }
 
+/// How long the proxy has run, while it runs.
+pub fn uptime(cx: &App) -> Option<Duration> {
+    let proxy = get(cx);
+    proxy.child.is_some().then(|| proxy.started.elapsed())
+}
+
+/// Waiting to start again after a crash.
+pub fn restarting(cx: &App) -> bool {
+    get(cx).restarting.is_some()
+}
+
+/// The first client key under `access.api-keys`, which AI tools send to the proxy.
+pub fn api_key() -> Option<String> {
+    let config = std::fs::read_to_string(config_path()).ok()?;
+    let mut lines = config
+        .lines()
+        .skip_while(|line| !line.starts_with("access:"))
+        .skip(1)
+        .take_while(|line| line.starts_with([' ', '\t']) || line.is_empty())
+        .skip_while(|line| line.trim() != "api-keys:")
+        .skip(1);
+    let key = lines.next()?.trim().strip_prefix('-')?.trim();
+    Some(key.trim_matches(['"', '\'']).to_owned()).filter(|key| !key.is_empty())
+}
+
 pub fn endpoint(cx: &App) -> String {
     format!("http://127.0.0.1:{}", crate::prefs::get(cx).proxy.port)
 }
@@ -166,6 +191,8 @@ pub fn init(runtime: tokio::runtime::Handle, live: bool, cx: &mut App) {
                 failures = 0;
                 continue;
             };
+            // Keep the uptime on screen current.
+            cx.update(|cx| cx.refresh_windows());
             if probe.await.unwrap_or(false) {
                 failures = 0;
                 continue;

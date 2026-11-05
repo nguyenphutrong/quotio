@@ -492,13 +492,7 @@ fn address_row(mode: Mode, endpoint: &Value, view: &Value, p: &Palette) -> impl 
                 .flex_1()
                 .min_w_0()
                 .truncate()
-                .font_family(if cfg!(target_os = "macos") {
-                    "Menlo"
-                } else if cfg!(windows) {
-                    "Consolas"
-                } else {
-                    "monospace"
-                })
+                .font_family(crate::theme::MONO_FONT)
                 .text_size(px(14.))
                 .text_color(p.text_strong)
                 .child(url),

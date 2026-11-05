@@ -38,7 +38,9 @@ icon_assets!(
         ArrowUpRight,
         Timer,
         PinOff,
-        RotateCcwClock
+        RotateCcwClock,
+        CircleArrowUp,
+        Layers
     ]
 );
 

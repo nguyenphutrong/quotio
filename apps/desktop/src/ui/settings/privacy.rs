@@ -208,13 +208,7 @@ fn login_row(provider: &str, source: &Source, p: &Palette) -> Div {
                 .child(
                     div()
                         .truncate()
-                        .font_family(if cfg!(target_os = "macos") {
-                            "Menlo"
-                        } else if cfg!(windows) {
-                            "Consolas"
-                        } else {
-                            "monospace"
-                        })
+                        .font_family(crate::theme::MONO_FONT)
                         .text_size(px(12.))
                         .text_color(p.text_sub)
                         .child(detail),

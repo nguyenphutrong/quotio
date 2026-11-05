@@ -124,6 +124,8 @@ pub struct SettingsWindow {
     share_port: Entity<InputState>,
     share_proxy: Entity<InputState>,
     proxy_port: Entity<InputState>,
+    /// "Manage versions…" lists installed and other releases on the CLIProxyAPI page.
+    proxy_versions_open: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -142,7 +144,7 @@ impl SettingsWindow {
         })
         .detach();
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search accounts"));
-        let subscriptions = vec![
+        let mut subscriptions = vec![
             cx.observe(&store, |_, _, cx| cx.notify()),
             cx.subscribe(&search, |_, _, event: &InputEvent, cx| {
                 if matches!(event, InputEvent::Change) {
@@ -166,6 +168,12 @@ impl SettingsWindow {
         let proxy_port = cx.new(|cx| {
             InputState::new(window, cx).default_value(crate::prefs::get(cx).proxy.port.to_string())
         });
+        // Save turns on once the port differs from the saved one.
+        subscriptions.push(cx.subscribe(&proxy_port, |_, _, event: &InputEvent, cx| {
+            if matches!(event, InputEvent::Change) {
+                cx.notify();
+            }
+        }));
         let mut this = Self {
             store,
             page: Page::Accounts,
@@ -186,6 +194,7 @@ impl SettingsWindow {
             share_port,
             share_proxy,
             proxy_port,
+            proxy_versions_open: false,
             _subscriptions: subscriptions,
         };
         this.load_host_settings(cx);
@@ -307,6 +316,10 @@ impl SettingsWindow {
                     icon(page.icon(), 20., p.text_sub).into_any_element()
                 })
                 .child(div().flex_1().child(page.title()))
+                .when(
+                    page == Page::CliProxyApi && crate::proxy::running(cx),
+                    |s| s.child(div().size(px(6.)).rounded_full().bg(p.primary)),
+                )
                 .when_some(badge.filter(|n| *n > 0), |s, n| {
                     s.child(
                         div()

@@ -6,6 +6,14 @@ use gpui_kit::{App, BoxShadow, Global, Hsla, WindowAppearance, point, px, rgb, r
 use serde::{Deserialize, Serialize};
 
 pub const FONT_FAMILY: &str = "Inter";
+/// Monospaced text, such as addresses and ports.
+pub const MONO_FONT: &str = if cfg!(target_os = "macos") {
+    "Menlo"
+} else if cfg!(windows) {
+    "Consolas"
+} else {
+    "monospace"
+};
 
 /// The user's choice in General → Appearance.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
