@@ -123,6 +123,7 @@ pub struct SettingsWindow {
     sharing_advanced: bool,
     share_port: Entity<InputState>,
     share_proxy: Entity<InputState>,
+    proxy_port: Entity<InputState>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -162,6 +163,9 @@ impl SettingsWindow {
                 .placeholder("https://quotio.example.com")
                 .default_value(saved.proxy_url.unwrap_or_default())
         });
+        let proxy_port = cx.new(|cx| {
+            InputState::new(window, cx).default_value(crate::prefs::get(cx).proxy.port.to_string())
+        });
         let mut this = Self {
             store,
             page: Page::Accounts,
@@ -181,6 +185,7 @@ impl SettingsWindow {
             sharing_advanced,
             share_port,
             share_proxy,
+            proxy_port,
             _subscriptions: subscriptions,
         };
         this.load_host_settings(cx);

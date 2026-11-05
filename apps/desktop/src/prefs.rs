@@ -22,6 +22,7 @@ pub struct Prefs {
     pub density: Density,
     pub total_usage: TotalUsage,
     pub model_aggregation: ModelAggregation,
+    pub proxy: crate::proxy::Prefs,
 }
 
 /// Menu bar status item, as in the macOS app. Windows and Linux trays show only the icon.

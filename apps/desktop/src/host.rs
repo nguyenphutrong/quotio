@@ -188,7 +188,7 @@ fn serve_args(options: &HostOptions) -> Result<ServeArgs> {
         adopt_data_dir: None,
         adopt_config: None,
         cli_proxy_auth_dir: None,
-        cli_proxy_config: None,
+        cli_proxy_config: (!options.demo).then(crate::proxy::config_path),
         manage: true,
         public_url: None,
         allow_origin: Vec::new(),

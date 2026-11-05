@@ -11,6 +11,7 @@ mod model;
 mod notifier;
 mod prefs;
 mod providers;
+mod proxy;
 mod sharing;
 mod store;
 mod theme;
@@ -110,6 +111,11 @@ fn main() -> Result<()> {
         let store = cx.new(|cx| QuotaStore::new(client, clock, cx));
         app::init(store.clone(), cx);
         updater::init(runtime.clone(), options.fixture.is_none(), cx);
+        proxy::init(
+            runtime.clone(),
+            options.fixture.is_none() && !options.demo,
+            cx,
+        );
         if options.fixture.is_none() && !options.demo {
             let host = store.read(cx).host();
             let saved = prefs::get(cx).sharing.clone();
