@@ -2,9 +2,9 @@
 use std::{sync::Arc, time::Duration};
 
 use gpui_kit::{Context, SharedString};
-use time::{OffsetDateTime, UtcOffset};
+use time::{OffsetDateTime, UtcOffset, format_description::well_known::Rfc3339};
 
-use crate::host::{HostClient, HostError};
+use crate::host::{HostClient, HostError, Method};
 use crate::model::{self, Overview};
 use crate::prefs::{self, QuotaDisplay};
 
@@ -28,6 +28,8 @@ pub struct QuotaStore {
     /// True while the host cannot open its account vault; settings offers to unlock it.
     pub vault_locked: bool,
     pub refreshing: bool,
+    /// When the host refreshes next, from `/v2/status`; `None` when refresh is manual.
+    pub next_refresh: Option<OffsetDateTime>,
 }
 
 impl QuotaStore {
@@ -41,6 +43,21 @@ impl QuotaStore {
                 if this.update(cx, |this, cx| this.apply(result, cx)).is_err() {
                     return;
                 }
+                let Ok(status) = this.update(cx, |this, _| {
+                    this.host.call(Method::GET, "/v2/status".into(), None)
+                }) else {
+                    return;
+                };
+                let next = status.await.ok().and_then(|status| {
+                    let at = status["next_refresh_at"].as_str()?;
+                    OffsetDateTime::parse(at, &Rfc3339).ok()
+                });
+                let _ = this.update(cx, |this, cx| {
+                    if this.next_refresh != next {
+                        this.next_refresh = next;
+                        cx.notify();
+                    }
+                });
                 cx.background_executor().timer(POLL_INTERVAL).await;
             }
         })
@@ -54,6 +71,7 @@ impl QuotaStore {
             error: None,
             vault_locked: false,
             refreshing: false,
+            next_refresh: None,
         }
     }
 

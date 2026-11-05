@@ -128,7 +128,18 @@ impl QuotaMenu {
         let store = self.store.read(cx);
         let status: SharedString = match (overview, &store.error) {
             (_, Some(error)) => format!("Host unavailable: {error}").into(),
-            (Some(overview), None) => overview.status_line().into(),
+            (Some(overview), None) => match store.next_refresh {
+                Some(next) if next > store.now() => {
+                    let wait = next - store.now();
+                    let wait = if wait.whole_minutes() < 1 {
+                        "<1m".to_owned()
+                    } else {
+                        crate::model::compact_ago(wait)
+                    };
+                    format!("{} · next in {wait}", overview.status_line()).into()
+                }
+                _ => overview.status_line().into(),
+            },
             (None, None) => "Loading…".into(),
         };
         let refreshing = store.refreshing;
