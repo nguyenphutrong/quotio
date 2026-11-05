@@ -1,7 +1,7 @@
 //! Self-update for the Windows and Linux builds. Releases tagged `desktop-v*` carry
 //! one executable per platform and its Ed25519 signature (`<asset>.sig`), made by
 //! `.github/workflows/desktop-release.yml`. macOS ships the Swift app and Sparkle.
-use std::{path::PathBuf, sync::OnceLock};
+use std::{path::PathBuf, sync::OnceLock, time::Duration};
 
 use anyhow::{Context as _, Result, anyhow};
 use gpui_kit::{App, Global, SystemNotification};
@@ -34,6 +34,10 @@ pub static RESTART: OnceLock<PathBuf> = OnceLock::new();
 #[derive(Clone, Debug)]
 pub struct Release {
     pub version: Version,
+    /// The executable's download size in bytes.
+    pub size: u64,
+    /// The release notes' first few bullet points.
+    pub notes: Vec<String>,
     binary: String,
     signature: String,
 }
@@ -53,12 +57,18 @@ struct Updates {
     http: reqwest::Client,
     runtime: tokio::runtime::Handle,
     state: State,
+    /// When the last check reached GitHub.
+    checked: Option<chrono::DateTime<chrono::Local>>,
 }
 
 impl Global for Updates {}
 
 pub fn state(cx: &App) -> &State {
     &cx.global::<Updates>().state
+}
+
+pub fn checked(cx: &App) -> Option<chrono::DateTime<chrono::Local>> {
+    cx.global::<Updates>().checked
 }
 
 /// `check_now` is off for fixtures, which should not reach the network.
@@ -71,15 +81,31 @@ pub fn init(runtime: tokio::runtime::Handle, check_now: bool, cx: &mut App) {
         http,
         runtime,
         state: State::Idle,
+        checked: None,
     });
     if let Ok(exe) = std::env::current_exe() {
         // ponytail: Windows keeps the previous executable locked until it exits, so
         // it may linger until the next update removes it.
         let _ = std::fs::remove_file(exe.with_extension("old"));
     }
-    if check_now && ASSET.is_some() {
-        check(cx);
+    if !check_now || ASSET.is_none() {
+        return;
     }
+    // At start, then once a day for an app that stays in the tray for weeks.
+    cx.spawn(async move |cx| {
+        loop {
+            cx.update(|cx| {
+                let idle = matches!(state(cx), State::Idle | State::UpToDate | State::Failed(_));
+                if idle && !crate::prefs::get(cx).manual_updates {
+                    check(cx);
+                }
+            });
+            cx.background_executor()
+                .timer(Duration::from_secs(24 * 60 * 60))
+                .await;
+        }
+    })
+    .detach();
 }
 
 pub fn check(cx: &mut App) {
@@ -90,6 +116,9 @@ pub fn check(cx: &mut App) {
     cx.spawn(async move |cx| {
         let result = task.await.map_err(anyhow::Error::from).and_then(|r| r);
         cx.update(|cx| {
+            if result.is_ok() {
+                cx.global_mut::<Updates>().checked = Some(chrono::Local::now());
+            }
             let state = match result {
                 Ok(Some(release)) => {
                     cx.show_system_notification(SystemNotification {
@@ -135,6 +164,7 @@ pub fn install(release: Release, cx: &mut App) {
 struct GitHubRelease {
     tag_name: String,
     draft: bool,
+    body: Option<String>,
     assets: Vec<GitHubAsset>,
 }
 
@@ -142,6 +172,7 @@ struct GitHubRelease {
 struct GitHubAsset {
     name: String,
     browser_download_url: String,
+    size: u64,
 }
 
 async fn latest(http: reqwest::Client) -> Result<Option<Release>> {
@@ -172,10 +203,20 @@ fn newest(releases: Vec<GitHubRelease>, current: &Version, asset: &str) -> Optio
                     .find(|a| a.name == name)
                     .map(|a| a.browser_download_url.clone())
             };
+            let notes = release
+                .body
+                .iter()
+                .flat_map(|body| body.lines())
+                .filter_map(|line| line.trim().strip_prefix(['-', '*']))
+                .map(|line| line.trim().to_owned())
+                .take(3)
+                .collect();
             Some(Release {
+                size: release.assets.iter().find(|a| a.name == asset)?.size,
                 binary: url(asset)?,
                 signature: url(&signature)?,
                 version,
+                notes,
             })
         })
         .filter(|release| release.version > *current)

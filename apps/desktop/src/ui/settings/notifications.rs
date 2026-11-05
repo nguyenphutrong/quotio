@@ -1,5 +1,6 @@
 //! Notifications page, from the Wonder artboard "Page - Quotio Settings
-//! Notifications". The CLIProxyAPI alerts are macOS-only and left out.
+//! Notifications". GPUI can't read whether the OS blocks notifications, so the
+//! design's "blocking" banner is left out.
 use gpui_kit::assets::IconName;
 use gpui_kit::component::Disableable as _;
 use gpui_kit::component::button::Button;
@@ -40,7 +41,7 @@ impl SettingsWindow {
         let quota_low = alert_row(
             (IconName::BatteryLow, p.error, p.error_alpha),
             "Quota running low",
-            "When any limit drops below the threshold.",
+            Some("When any limit drops below the threshold."),
             div()
                 .flex()
                 .items_center()
@@ -66,7 +67,7 @@ impl SettingsWindow {
         let cooling = alert_row(
             (IconName::Timer, p.away, p.away.opacity(0.14)),
             "Account cooling down",
-            "When an account hits its limit and waits for a reset.",
+            Some("When an account hits its limit and waits for a reset."),
             toggle(
                 "cooling-down",
                 settings.cooling_down,
@@ -75,6 +76,41 @@ impl SettingsWindow {
                 |on, _, cx| {
                     let on = *on;
                     edit(cx, |n| n.cooling_down = on);
+                },
+            ),
+            on,
+            &p,
+        );
+        let neutral = (IconName::Server, p.text_sub, p.bg_weak);
+        let proxy_stopped = alert_row(
+            neutral,
+            "CLIProxyAPI stopped",
+            Some("Only if you run the local proxy."),
+            toggle(
+                "proxy-stopped",
+                settings.proxy_stopped,
+                on,
+                &p,
+                |on, _, cx| {
+                    let on = *on;
+                    edit(cx, |n| n.proxy_stopped = on);
+                },
+            ),
+            on,
+            &p,
+        );
+        let proxy_update = alert_row(
+            (IconName::CloudDownload, neutral.1, neutral.2),
+            "CLIProxyAPI update available",
+            None,
+            toggle(
+                "proxy-update",
+                settings.proxy_update,
+                on,
+                &p,
+                |on, _, cx| {
+                    let on = *on;
+                    edit(cx, |n| n.proxy_update = on);
                 },
             ),
             on,
@@ -90,7 +126,7 @@ impl SettingsWindow {
         .child(section(
             "Alerts",
             "Choose what Quotio tells you about.",
-            rows([quota_low, cooling], &p),
+            rows([quota_low, cooling, proxy_stopped, proxy_update], &p),
             &p,
         ))
         .child(
@@ -152,7 +188,7 @@ fn threshold_select(threshold: u8, enabled: bool, p: &Palette) -> impl IntoEleme
 fn alert_row(
     (glyph, tint, tile): (IconName, Hsla, Hsla),
     label: &str,
-    help: &str,
+    help: Option<&str>,
     control: impl IntoElement,
     enabled: bool,
     p: &Palette,
@@ -175,7 +211,7 @@ fn alert_row(
         )
         .child(div().flex_1().min_w_0().child(row(
             label.to_owned(),
-            Some(help.to_owned().into()),
+            help.map(|h| h.to_owned().into()),
             control,
             p,
         )))

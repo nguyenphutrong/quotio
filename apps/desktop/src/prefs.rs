@@ -23,6 +23,8 @@ pub struct Prefs {
     pub total_usage: TotalUsage,
     pub model_aggregation: ModelAggregation,
     pub proxy: crate::proxy::Prefs,
+    /// Check for app updates only when asked, not at start and once a day.
+    pub manual_updates: bool,
 }
 
 /// Menu bar status item, as in the macOS app. Windows and Linux trays show only the icon.
@@ -95,6 +97,10 @@ pub struct Notifications {
     pub threshold: u8,
     /// A limit is used up and the account waits for its reset.
     pub cooling_down: bool,
+    /// CLIProxyAPI gave up restarting after repeated crashes.
+    pub proxy_stopped: bool,
+    /// A newer CLIProxyAPI release is out.
+    pub proxy_update: bool,
 }
 
 impl Default for Notifications {
@@ -104,6 +110,8 @@ impl Default for Notifications {
             quota_low: true,
             threshold: 20,
             cooling_down: true,
+            proxy_stopped: true,
+            proxy_update: false,
         }
     }
 }

@@ -320,6 +320,14 @@ impl SettingsWindow {
                     page == Page::CliProxyApi && crate::proxy::running(cx),
                     |s| s.child(div().size(px(6.)).rounded_full().bg(p.primary)),
                 )
+                .when(
+                    page == Page::About
+                        && matches!(
+                            crate::updater::state(cx),
+                            crate::updater::State::Available(_)
+                        ),
+                    |s| s.child(div().size(px(6.)).rounded_full().bg(p.info)),
+                )
                 .when_some(badge.filter(|n| *n > 0), |s, n| {
                     s.child(
                         div()

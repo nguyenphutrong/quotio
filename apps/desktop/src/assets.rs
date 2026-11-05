@@ -40,7 +40,10 @@ icon_assets!(
         PinOff,
         RotateCcwClock,
         CircleArrowUp,
-        Layers
+        Layers,
+        Server,
+        CloudDownload,
+        Sparkles
     ]
 );
 

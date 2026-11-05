@@ -257,12 +257,15 @@ fn exited(cx: &mut App) {
         let message =
             format!("CLIProxyAPI keeps stopping ({status}). Check that port {port} is free.");
         cx.global_mut::<Proxy>().error = Some(message.clone());
-        cx.show_system_notification(SystemNotification {
-            tag: "proxy-crashed".into(),
-            title: "CLIProxyAPI stopped".into(),
-            body: message.into(),
-            actions: Vec::new(),
-        });
+        let alerts = &crate::prefs::get(cx).notifications;
+        if alerts.enabled && alerts.proxy_stopped {
+            cx.show_system_notification(SystemNotification {
+                tag: "proxy-crashed".into(),
+                title: "CLIProxyAPI stopped".into(),
+                body: message.into(),
+                actions: Vec::new(),
+            });
+        }
     }
     cx.refresh_windows();
 }
@@ -402,8 +405,20 @@ pub fn check(cx: &mut App) {
         let active = crate::prefs::get(cx).proxy.version.clone();
         let active = active.and_then(|v| Version::parse(&v).ok());
         let latest = releases.into_iter().next();
-        cx.global_mut::<Proxy>().upgrade =
-            latest.filter(|latest| active.is_none_or(|active| latest.version > active));
+        let upgrade = latest.filter(|latest| active.is_none_or(|active| latest.version > active));
+        let alerts = &crate::prefs::get(cx).notifications;
+        if let Some(release) = &upgrade
+            && alerts.enabled
+            && alerts.proxy_update
+        {
+            cx.show_system_notification(SystemNotification {
+                tag: format!("proxy-update:{}", release.version).into(),
+                title: format!("CLIProxyAPI {} is available", release.version).into(),
+                body: "Install it from Settings › CLIProxyAPI.".into(),
+                actions: Vec::new(),
+            });
+        }
+        cx.global_mut::<Proxy>().upgrade = upgrade;
     });
 }
 
