@@ -1,0 +1,2 @@
+[target.'cfg(target_os = "macos")']
+runner = "scripts/sign-and-run.sh"
