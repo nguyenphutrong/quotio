@@ -39,7 +39,8 @@ tray-icon = "0.26"
 block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-core-foundation", "NSApplication", "NSAttributedString", "NSButton", "NSColor", "NSControl", "NSEvent", "NSFont", "NSFontDescriptor", "NSGraphics", "NSImage", "NSResponder", "NSStatusBarButton", "NSStatusItem", "NSStringDrawing", "NSView", "NSWindow"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSAttributedString", "NSData", "NSDictionary", "NSEnumerator", "NSGeometry", "NSString"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSAttributedString", "NSData", "NSDictionary", "NSEnumerator", "NSBundle", "NSGeometry", "NSString"] }
+security-framework = "3"
 
 [target.'cfg(windows)'.dependencies]
 raw-window-handle = "0.6"

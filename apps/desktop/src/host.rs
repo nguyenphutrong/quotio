@@ -164,8 +164,12 @@ impl Drop for EmbeddedHost {
 }
 
 fn serve_args(options: &HostOptions) -> Result<ServeArgs> {
+    let swift = if options.demo { None } else { swift_vault() };
     let (provider, vault_namespace, account_data_dir) = if options.demo {
         (vec![Provider::Mock], None, None)
+    } else if swift.is_some() {
+        // Shares the standalone CLI's vault, as the Swift app's helper does.
+        (Vec::new(), None, None)
     } else {
         // The desktop app keeps its own vault, like the macOS app's `quotio-macos`.
         let namespace = "quotio-desktop"
@@ -177,16 +181,21 @@ fn serve_args(options: &HostOptions) -> Result<ServeArgs> {
         parent_pipe: false,
         listen: SocketAddr::from(([127, 0, 0, 1], 0)),
         provider,
-        // Its own settings too, apart from the command-line tool's `config.toml`.
-        config: Some(project_dirs()?.config_dir().join("host.toml")),
+        // Its own settings too, apart from the command-line tool's `config.toml`,
+        // unless it shares that tool's vault.
+        config: if swift.is_some() {
+            None
+        } else {
+            Some(project_dirs()?.config_dir().join("host.toml"))
+        },
         refresh_interval: None,
         timeout: None,
         no_saved_accounts: options.demo,
         account_vault_namespace: vault_namespace,
         account_data_dir,
-        adopt_vault_namespace: None,
-        adopt_data_dir: None,
-        adopt_config: None,
+        adopt_config: swift.as_ref().and_then(|swift| swift.config.clone()),
+        adopt_data_dir: swift.as_ref().map(|swift| swift.data_dir.clone()),
+        adopt_vault_namespace: swift.map(|swift| swift.namespace),
         cli_proxy_auth_dir: None,
         cli_proxy_config: (!options.demo).then(crate::proxy::config_path),
         manage: true,
@@ -219,6 +228,57 @@ fn account_data_dir() -> Result<PathBuf> {
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
     builder.create(&dir)?;
     Ok(dir)
+}
+
+/// The vault the Swift app kept for this bundle before this build replaced it.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+struct SwiftVault {
+    namespace: quotio::accounts::vault::VaultNamespace,
+    data_dir: PathBuf,
+    config: Option<PathBuf>,
+}
+
+/// Mirrors the Swift app: only a Developer ID build signed as the standalone CLI
+/// (`dev.quotio.cli`) may use the shared vault; others keep their own.
+#[cfg(target_os = "macos")]
+fn swift_vault() -> Option<SwiftVault> {
+    use security_framework::os::macos::code_signing::{Flags, SecCode, SecRequirement};
+    let requirement: SecRequirement = r#"identifier "dev.quotio.cli" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists"#
+        .parse()
+        .ok()?;
+    SecCode::for_self(Flags::NONE)
+        .ok()?
+        .check_validity(Flags::NONE, &requirement)
+        .ok()?;
+    let bundle = objc2_foundation::NSBundle::mainBundle()
+        .bundleIdentifier()?
+        .to_string();
+    // AppIdentity.quotioCLIVaultNamespace and RuntimeIdentity.applicationSupportDirectoryName.
+    let production = bundle == "app.bytrong.quotio";
+    let namespace = if production {
+        "quotio-macos".to_owned()
+    } else {
+        let digest = ring::digest::digest(&ring::digest::SHA256, bundle.as_bytes());
+        let hex: String = digest.as_ref()[..8]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        format!("quotio-macos-{hex}")
+    };
+    let support = directories::BaseDirs::new()?
+        .data_dir()
+        .join(if production { "Quotio" } else { &bundle });
+    let config = support.join("quotio-cli.toml");
+    Some(SwiftVault {
+        namespace: namespace.parse().ok()?,
+        data_dir: support.join("QuotioCLI"),
+        config: config.is_file().then_some(config),
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn swift_vault() -> Option<SwiftVault> {
+    None
 }
 
 /// The Linux vault is AES-encrypted with a key the host reads from
