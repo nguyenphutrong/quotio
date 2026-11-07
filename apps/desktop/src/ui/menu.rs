@@ -1,7 +1,7 @@
 //! Tray popup, built from the Wonder artboard "Menu Bar Quota Menu" (360 px wide).
 use gpui_kit::assets::IconName;
 use gpui_kit::{
-    AnyElement, App, AppContext as _, Context, Entity, FocusHandle, FontWeight, Hsla,
+    AnyElement, App, AppContext as _, Context, Div, Entity, FocusHandle, FontWeight, Hsla,
     InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Render, SharedString,
     StatefulInteractiveElement, Styled, Subscription, Window, div, prelude::FluentBuilder as _, px,
     relative, size,
@@ -21,7 +21,7 @@ use crate::host::{HostClient, Method};
 use crate::model::{
     AccountView, IssueView, MetricView, Overview, Pace, ProviderGroup, weekday_time,
 };
-use crate::prefs::Density;
+use crate::prefs::QuotaStyle;
 use crate::store::QuotaStore;
 use crate::theme::{FONT_FAMILY, Palette, palette};
 
@@ -32,8 +32,6 @@ pub struct QuotaMenu {
     filter: Option<String>,
     focus: FocusHandle,
     was_active: bool,
-    /// Recorded (time, remaining %) per (account, limit), for Detailed burn charts.
-    history: History,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -46,10 +44,7 @@ impl QuotaMenu {
         // The system may have switched theme while no window was open to hear it.
         crate::theme::system_changed(window.appearance(), cx);
         let subscriptions = vec![
-            cx.observe(&store, |this: &mut Self, _, cx| {
-                this.load_history(cx);
-                cx.notify()
-            }),
+            cx.observe(&store, |_, _, cx| cx.notify()),
             cx.observe_window_appearance(window, |_, window, cx| {
                 crate::theme::system_changed(window.appearance(), cx)
             }),
@@ -64,49 +59,12 @@ impl QuotaMenu {
                 }
             }),
         ];
-        let mut this = Self {
+        Self {
             store,
             filter: None,
             focus,
             was_active: false,
-            history: HashMap::new(),
             _subscriptions: subscriptions,
-        };
-        this.load_history(cx);
-        this
-    }
-
-    /// Fetches recorded quota once per popup for each limit that gets a burn chart.
-    /// A failed fetch leaves the chart drawing an even spend up to now.
-    fn load_history(&mut self, cx: &mut Context<Self>) {
-        if crate::prefs::get(cx).density != Density::Detailed {
-            return;
-        }
-        let (overview, host) = {
-            let store = self.store.read(cx);
-            (store.overview.clone(), store.host())
-        };
-        let Some(overview) = overview else { return };
-        for account in overview.groups.iter().flat_map(|g| &g.accounts) {
-            for metric in &account.metrics {
-                let Some(pace) = metric.pace.filter(|p| p.behind) else {
-                    continue;
-                };
-                let key = (account.id.clone(), metric.id.clone());
-                if self.history.contains_key(&key) {
-                    continue;
-                }
-                self.history.insert(key.clone(), Vec::new());
-                let request = fetch_history(&host, &key.0, &key.1, pace.window);
-                cx.spawn(async move |this, cx| {
-                    let Some(points) = request.await else { return };
-                    let _ = this.update(cx, |this, cx| {
-                        this.history.insert(key, points);
-                        cx.notify();
-                    });
-                })
-                .detach();
-            }
         }
     }
 
@@ -258,11 +216,7 @@ impl QuotaMenu {
     fn group(&self, index: usize, group: &ProviderGroup, cx: &mut Context<Self>) -> AnyElement {
         let p = palette(cx).clone();
         let provider = group.provider_id.clone();
-        let density = crate::prefs::get(cx).density;
-        let (now, offset) = {
-            let store = self.store.read(cx);
-            (store.now(), store.offset())
-        };
+        let style = crate::prefs::get(cx).quota_style;
         div()
             .flex()
             .flex_col()
@@ -319,12 +273,9 @@ impl QuotaMenu {
             })
             .children(group.accounts.iter().map(|account| {
                 let name = shown_name(&account.name, cx);
-                match density {
-                    Density::Compact => compact_row(account, name, &p),
-                    Density::Comfortable => account_card(account, name, None, &p),
-                    Density::Detailed => {
-                        account_card(account, name, Some((&self.history, now, offset)), &p)
-                    }
+                match style {
+                    QuotaStyle::Compact => compact_row(account, name, &p),
+                    style => account_card(account, name, style, &p),
                 }
             }))
             .into_any_element()
@@ -508,14 +459,8 @@ impl Render for QuotaMenu {
     }
 }
 
-/// Comfortable shows the limits as tiles; Detailed gives each limit a full-width row.
-fn account_card(
-    account: &AccountView,
-    name: String,
-    detail: Option<(&History, OffsetDateTime, UtcOffset)>,
-    p: &Palette,
-) -> AnyElement {
-    let detailed = detail.is_some();
+/// Rings, Gauge and Bars share the card; only the limits inside it differ.
+fn account_card(account: &AccountView, name: String, style: QuotaStyle, p: &Palette) -> AnyElement {
     let group = SharedString::from(format!("card-{}", account.id));
     let mut card = div()
         .id(group.clone())
@@ -523,13 +468,9 @@ fn account_card(
         .flex()
         .flex_col()
         .mx(px(4.))
-        .p(px(if detailed { 12. } else { 10. }))
+        .p(px(10.))
         .rounded(px(12.))
-        .gap(px(match (detailed, account.issue.is_some()) {
-            (_, true) => 8.,
-            (true, false) => 12.,
-            (false, false) => 10.,
-        }))
+        .gap(px(if account.issue.is_some() { 8. } else { 10. }))
         .cursor_pointer()
         .hover(|s| s.bg(p.bg_weak))
         // Like a submenu, hovering a card shows its limits over time beside the popup.
@@ -577,37 +518,397 @@ fn account_card(
         .child(card_header(account, name, &group, p));
     if let Some(issue) = &account.issue {
         card = card.child(issue_banner(issue, p));
-    } else if let Some((history, now, offset)) = detail {
-        // As in the design, only a limit that is running out gets the chart.
-        card = card.children(account.metrics.iter().map(|m| match m.pace {
-            Some(pace) if pace.behind => {
-                let key = (account.id.clone(), m.id.clone());
-                let recorded = history.get(&key).map_or(&[][..], Vec::as_slice);
-                burn_card(
-                    m,
-                    m.label.clone(),
-                    pace,
-                    recorded,
-                    now,
-                    offset,
-                    PLOT_HEIGHT,
-                    p,
-                )
-                .into_any_element()
-            }
-            _ => metric_row(m, p).into_any_element(),
-        }));
     } else if !account.metrics.is_empty() {
-        let single = account.metrics.len() == 1;
-        card = card.child(
-            div()
-                .grid()
-                .grid_cols(if single { 1 } else { 2 })
+        let metrics = &account.metrics;
+        card = card.child(match style {
+            QuotaStyle::Rings => rings(metrics, p),
+            QuotaStyle::Gauge => gauge(metrics, p),
+            _ => div()
+                .flex()
+                .flex_col()
                 .gap(px(8.))
-                .children(account.metrics.iter().map(|m| metric_tile(m, &group, p))),
-        );
+                .children(metrics.iter().map(|m| bar_row(m, p)))
+                .into_any_element(),
+        });
     }
     card.into_any_element()
+}
+
+/// `Empties Sun 10:00` in the warning colour, when the limit runs out before its reset.
+fn empties_note(metric: &MetricView, p: &Palette) -> Option<Div> {
+    metric.empties.as_ref().map(|empty| {
+        div()
+            .whitespace_nowrap()
+            .text_size(px(11.))
+            .font_weight(FontWeight::MEDIUM)
+            .text_color(p.away)
+            .child(format!("Empties {empty}"))
+    })
+}
+
+/// Bars: name, segmented bar with the pace tick, value; the forecast and reset below.
+fn bar_row(metric: &MetricView, p: &Palette) -> impl IntoElement {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(4.))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .child(
+                    div()
+                        .w(px(88.))
+                        .flex_none()
+                        .truncate()
+                        .text_size(px(12.))
+                        .text_color(p.text_sub)
+                        .child(metric.label.clone()),
+                )
+                .child(div().flex_1().min_w_0().child(segments(metric, 20, 10., p)))
+                .child(
+                    div()
+                        .w(px(40.))
+                        .flex_none()
+                        .flex()
+                        .justify_end()
+                        .text_size(px(13.))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(value_color(metric.tone, p))
+                        .child(metric.value.clone()),
+                ),
+        )
+        .child(
+            div()
+                .flex()
+                .justify_between()
+                .gap(px(8.))
+                .pl(px(96.))
+                .text_size(px(11.))
+                .child(empties_note(metric, p).unwrap_or_else(div))
+                .child(
+                    div()
+                        .whitespace_nowrap()
+                        .text_color(p.text_soft)
+                        .children(metric.reset_sentence()),
+                ),
+        )
+}
+
+/// The bar cut into segments. Behind pace, the gap up to the tick is tinted.
+pub(crate) fn segments(metric: &MetricView, count: usize, height: f32, p: &Palette) -> Div {
+    let color = tone_color(metric.tone, p);
+    let fill = metric.fill.unwrap_or(0.);
+    let behind = metric.pace.is_some_and(|pace| pace.behind);
+    let gap_end = metric.tick.filter(|_| behind).unwrap_or(fill);
+    div()
+        .relative()
+        .flex()
+        .gap(px(2.))
+        .children((0..count).map(|i| {
+            let at = (i as f32 + 0.5) / count as f32;
+            let bg = if at < fill {
+                color
+            } else if at < gap_end {
+                p.away.opacity(0.25)
+            } else {
+                p.stroke_soft
+            };
+            div().flex_1().h(px(height)).rounded(px(2.)).bg(bg)
+        }))
+        .when_some(metric.tick, |s, tick| {
+            s.child(
+                div()
+                    .absolute()
+                    .top(px(-3.))
+                    .bottom(px(-3.))
+                    .left(relative(tick.clamp(0., 1.)))
+                    .ml(px(-1.))
+                    .w(px(2.))
+                    .rounded(px(1.))
+                    .bg(p.text_strong),
+            )
+        })
+}
+
+/// Rings: each limit as a ring with its value inside, two to a row.
+fn rings(metrics: &[MetricView], p: &Palette) -> AnyElement {
+    let forecast = metrics.iter().find_map(|m| m.empties.clone());
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(8.))
+        .child(
+            div()
+                .grid()
+                .grid_cols(if metrics.len() == 1 { 1 } else { 2 })
+                .gap(px(8.))
+                .children(metrics.iter().map(|m| {
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(10.))
+                        .min_w_0()
+                        .child(
+                            div()
+                                .relative()
+                                .flex_none()
+                                .size(px(44.))
+                                .child(ring(
+                                    m.fill.unwrap_or(0.),
+                                    tone_color(m.tone, p),
+                                    p.stroke_soft,
+                                    44.,
+                                    4.,
+                                ))
+                                .child(
+                                    div()
+                                        .absolute()
+                                        .inset_0()
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .text_size(px(11.))
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .text_color(value_color(m.tone, p))
+                                        .child(m.value.clone()),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .min_w_0()
+                                .child(
+                                    div()
+                                        .truncate()
+                                        .text_size(px(12.))
+                                        .text_color(p.text_sub)
+                                        .child(m.label.clone()),
+                                )
+                                .child(
+                                    div()
+                                        .truncate()
+                                        .text_size(px(13.))
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(p.text_strong)
+                                        .child(m.reset.clone().unwrap_or_else(|| "—".into())),
+                                ),
+                        )
+                })),
+        )
+        .when_some(forecast, |s, empty| {
+            s.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .px(px(10.))
+                    .py(px(6.))
+                    .rounded(px(8.))
+                    .bg(p.away.opacity(0.1))
+                    .child(div().size(px(6.)).rounded_full().bg(p.away))
+                    .child(
+                        div()
+                            .text_size(px(11.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(p.away)
+                            .child(format!("Empties {empty}")),
+                    ),
+            )
+        })
+        .into_any_element()
+}
+
+/// Gauge: the first limit as a tick gauge with a big countdown, the rest as short bars.
+fn gauge(metrics: &[MetricView], p: &Palette) -> AnyElement {
+    let first = &metrics[0];
+    let caption = match &first.reset {
+        Some(reset) if reset.starts_with(|c: char| c.is_ascii_digit()) => {
+            format!("{} resets in", first.label)
+        }
+        Some(_) => format!("{} resets", first.label),
+        None => first.label.clone(),
+    };
+    let note = empties_note(first, p).or_else(|| {
+        first
+            .pace
+            .filter(|pace| !pace.behind && pace.used_per_day > 0.)
+            .map(|pace| {
+                div()
+                    .truncate()
+                    .text_size(px(11.))
+                    .text_color(p.text_soft)
+                    .child(format!("{} · lasts to reset", pace.rate(pace.used_per_day)))
+            })
+    });
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(8.))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(12.))
+                .child(
+                    div()
+                        .relative()
+                        .flex_none()
+                        .size(px(72.))
+                        .child(tick_gauge(
+                            first.fill.unwrap_or(0.),
+                            tone_color(first.tone, p),
+                            p.stroke_soft,
+                            72.,
+                        ))
+                        .child(
+                            div()
+                                .absolute()
+                                .inset_0()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(px(17.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(value_color(first.tone, p))
+                                .child(first.value.clone()),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .min_w_0()
+                        .child(
+                            div()
+                                .text_size(px(11.))
+                                .text_color(p.text_soft)
+                                .child(caption),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(20.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(p.text_strong)
+                                .child(first.reset.clone().unwrap_or_else(|| "—".into())),
+                        )
+                        .children(note),
+                ),
+        )
+        .children(metrics[1..].iter().map(|m| {
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .w(px(48.))
+                                .flex_none()
+                                .truncate()
+                                .text_size(px(11.))
+                                .text_color(p.text_sub)
+                                .child(m.label.clone()),
+                        )
+                        .child(div().flex_1().min_w_0().child(segments(m, 24, 8., p)))
+                        .child(
+                            div()
+                                .w(px(36.))
+                                .flex_none()
+                                .flex()
+                                .justify_end()
+                                .text_size(px(12.))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(value_color(m.tone, p))
+                                .child(m.value.clone()),
+                        )
+                        .child(
+                            div()
+                                .w(px(56.))
+                                .flex_none()
+                                .flex()
+                                .justify_end()
+                                .truncate()
+                                .text_size(px(10.))
+                                .text_color(p.text_soft)
+                                .children(m.reset.clone()),
+                        ),
+                )
+                .children(empties_note(m, p).map(|n| n.pl(px(56.))))
+        }))
+        .into_any_element()
+}
+
+/// A full ring with the share drawn clockwise from the top.
+pub(crate) fn ring(
+    fill: f32,
+    color: Hsla,
+    track: Hsla,
+    diameter: f32,
+    width: f32,
+) -> impl IntoElement {
+    canvas(
+        |_, _, _| (),
+        move |bounds, (), window, _| {
+            let center = bounds.center();
+            let radius = px(diameter / 2. - width / 2.);
+            let mut arc = |to: f32, color: Hsla| {
+                if to <= 0.001 {
+                    return;
+                }
+                // ponytail: polyline arc, switch to PathBuilder::arc_to if it looks faceted.
+                let steps = (to * 72.).ceil().max(2.) as usize;
+                let mut path = PathBuilder::stroke(px(width));
+                for k in 0..=steps {
+                    let angle = to * k as f32 / steps as f32 * std::f32::consts::TAU
+                        - std::f32::consts::FRAC_PI_2;
+                    let at = center + point(radius * angle.cos(), radius * angle.sin());
+                    if k == 0 {
+                        path.move_to(at)
+                    } else {
+                        path.line_to(at)
+                    }
+                }
+                if let Ok(path) = path.build() {
+                    window.paint_path(path, color);
+                }
+            };
+            arc(1., track);
+            arc(fill.clamp(0., 1.), color);
+        },
+    )
+    .size(px(diameter))
+}
+
+/// Ticks around a 270° arc, lit up to the share.
+pub(crate) fn tick_gauge(fill: f32, color: Hsla, track: Hsla, diameter: f32) -> impl IntoElement {
+    const TICKS: usize = 30;
+    canvas(
+        |_, _, _| (),
+        move |bounds, (), window, _| {
+            let center = bounds.center();
+            let (outer, inner) = (diameter / 2. - 1., diameter / 2. - diameter / 8.);
+            for i in 0..TICKS {
+                let share = i as f32 / (TICKS - 1) as f32;
+                let angle = (135. + share * 270.).to_radians();
+                let (cos, sin) = (angle.cos(), angle.sin());
+                let mut path = PathBuilder::stroke(px(diameter / 30.));
+                path.move_to(center + point(px(inner * cos), px(inner * sin)));
+                path.line_to(center + point(px(outer * cos), px(outer * sin)));
+                if let Ok(path) = path.build() {
+                    let lit = fill > 0. && share <= fill;
+                    window.paint_path(path, if lit { color } else { track });
+                }
+            }
+        },
+    )
+    .size(px(diameter))
 }
 
 /// A problem and the action that fixes it, such as "Sign-in expired · Sign in again".
@@ -688,63 +989,6 @@ fn card_header(
         )
 }
 
-fn metric_tile(metric: &MetricView, group: &SharedString, p: &Palette) -> impl IntoElement {
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(6.))
-        .p(px(8.))
-        .rounded(px(10.))
-        .bg(p.bg_weak)
-        .group_hover(group.clone(), |s| s.bg(p.bg_white))
-        .min_w_0()
-        .child(
-            div()
-                .flex()
-                .justify_between()
-                .items_baseline()
-                .gap(px(6.))
-                .child(
-                    div()
-                        .min_w_0()
-                        .truncate()
-                        .text_size(px(11.))
-                        .text_color(p.text_sub)
-                        .child(metric.label.clone()),
-                )
-                .child(
-                    div()
-                        .flex_none()
-                        .text_size(px(13.))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(value_color(metric.tone, p))
-                        .child(metric.value.clone()),
-                ),
-        )
-        .child(paced_bar(metric, 4., p))
-        .map(|s| match (&metric.empties, &metric.reset) {
-            // Too narrow for both: the projection matters more than the reset.
-            (Some(empty), _) => s.child(
-                div()
-                    .truncate()
-                    .text_size(px(11.))
-                    .text_color(p.away)
-                    .child(format!("Empty {empty}")),
-            ),
-            (None, Some(reset)) => s.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap(px(4.))
-                    .text_size(px(11.))
-                    .text_color(p.text_soft)
-                    .child(icon(IconName::Clock, 11., p.text_soft))
-                    .child(reset.clone()),
-            ),
-            (None, None) => s,
-        })
-}
-
 /// The bar with a tick where spending the window evenly would be now.
 fn paced_bar(metric: &MetricView, height: f32, p: &Palette) -> impl IntoElement {
     div()
@@ -766,7 +1010,7 @@ fn paced_bar(metric: &MetricView, height: f32, p: &Palette) -> impl IntoElement 
         })
 }
 
-/// Detailed density: one limit across the card, with its reset in words.
+/// One limit across the card, with its reset in words.
 pub(super) fn metric_row(metric: &MetricView, p: &Palette) -> impl IntoElement {
     div()
         .flex()
@@ -819,8 +1063,6 @@ pub(super) fn metric_row(metric: &MetricView, p: &Palette) -> impl IntoElement {
                 ),
         )
 }
-
-const PLOT_HEIGHT: f32 = 56.;
 
 /// A limit running out: the window so far, the even-pace line, where the current
 /// rate leads, and what to do about it. From the design's "Detailed card".
@@ -1080,7 +1322,7 @@ pub(super) fn burn_card(
         )
 }
 
-/// Compact density: one line per account, a mini bar for each of the two tightest
+/// Compact: one line per account, a mini bar for each of the two tightest
 /// limits, and the value of the limit that runs out first.
 fn compact_row(account: &AccountView, name: String, p: &Palette) -> AnyElement {
     let left = |m: &MetricView| m.remaining.unwrap_or(1.);
@@ -1185,7 +1427,7 @@ const CHROME_HEIGHT: f32 = 6. + 56. + 39. + 97. + 6.;
 
 /// Initial window height, close to the laid-out height so the popup does not jump
 /// when `render` fits the window to its content.
-pub fn preferred_height_for(overview: Option<&Overview>, density: Density) -> f32 {
+pub fn preferred_height_for(overview: Option<&Overview>, style: QuotaStyle) -> f32 {
     let Some(overview) = overview else {
         return CHROME_HEIGHT + 60.;
     };
@@ -1196,27 +1438,24 @@ pub fn preferred_height_for(overview: Option<&Overview>, density: Density) -> f3
             36. + group
                 .accounts
                 .iter()
-                .map(
-                    |account| match (density, &account.issue, account.metrics.len()) {
-                        (Density::Compact, None, n) if n > 0 => 49.,
-                        (Density::Compact, _, _) => 35.,
-                        (Density::Comfortable, Some(_), _) => 76.,
-                        (Density::Detailed, Some(_), _) => 80.,
-                        (Density::Comfortable, None, 0) => 40.,
-                        (Density::Detailed, None, n) => {
-                            let burning = account
-                                .metrics
-                                .iter()
-                                .filter(|m| m.pace.is_some_and(|p| p.behind))
-                                .count();
-                            46. + n as f32 * 65. + burning as f32 * 110.
-                        }
-                        (Density::Comfortable, None, n) => {
+                .map(|account| {
+                    let n = account.metrics.len();
+                    let forecast = account.metrics.iter().any(|m| m.empties.is_some());
+                    match (style, &account.issue, n) {
+                        (QuotaStyle::Compact, None, n) if n > 0 => 49.,
+                        (QuotaStyle::Compact, _, _) => 35.,
+                        (_, Some(_), _) => 76.,
+                        (_, None, 0) => 40.,
+                        (QuotaStyle::Bars, None, n) => 42. + n as f32 * 46.,
+                        (QuotaStyle::Rings, None, n) => {
                             let rows = n.div_ceil(2) as f32;
-                            50. + rows * 62. + (rows - 1.) * 8.
+                            42. + rows * 52. + if forecast { 34. } else { 0. }
                         }
-                    },
-                )
+                        (QuotaStyle::Gauge, None, n) => {
+                            42. + 80. + (n - 1) as f32 * 26. + if forecast { 16. } else { 0. }
+                        }
+                    }
+                })
                 .sum::<f32>()
         })
         .sum::<f32>()

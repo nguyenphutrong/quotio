@@ -14,7 +14,9 @@ use serde_json::json;
 use super::widgets::{page, row, row_with, rows, section, segmented, this_computer, toggle};
 use super::{Page, SettingsWindow};
 use crate::host::Method;
-use crate::prefs::{self, Density, MenuBar, ModelAggregation, QuotaDisplay, TotalUsage, TrayIcon};
+use crate::prefs::{
+    self, MenuBar, ModelAggregation, QuotaDisplay, QuotaStyle, TotalUsage, TrayIcon,
+};
 use crate::theme::{Palette, palette};
 use crate::ui::{ButtonKind, button, dialog_footer, icon, note, tone_color};
 
@@ -279,7 +281,7 @@ impl SettingsWindow {
                 .flex_col()
                 .gap(px(16.))
                 .child(display)
-                .child(self.density_options(prefs.density, &p, cx)),
+                .child(self.style_options(prefs.quota_style, &p, cx)),
             &p,
         ))
         .child(
@@ -527,9 +529,9 @@ impl SettingsWindow {
             )
     }
 
-    /// Compact, Comfortable and Detailed cards with a sketch of each layout.
-    fn density_options(&self, chosen: Density, p: &Palette, cx: &mut Context<Self>) -> Div {
-        let option = |density: Density, name: &'static str, help: &'static str, sketch: Div| {
+    /// Compact, Rings, Gauge and Bars cards with a sketch of each.
+    fn style_options(&self, chosen: QuotaStyle, p: &Palette, cx: &mut Context<Self>) -> Div {
+        let option = |style: QuotaStyle, name: &'static str, help: &'static str, sketch: Div| {
             div()
                 .id(name)
                 .flex_1()
@@ -539,7 +541,7 @@ impl SettingsWindow {
                 .gap(px(8.))
                 .p(px(6.))
                 .border_2()
-                .border_color(if density == chosen {
+                .border_color(if style == chosen {
                     p.primary
                 } else {
                     p.stroke_soft
@@ -573,7 +575,7 @@ impl SettingsWindow {
                         .child(div().text_size(px(11.)).text_color(p.text_soft).child(help)),
                 )
                 .on_click(cx.listener(move |this, _, _, cx| {
-                    prefs::update(cx, |prefs| prefs.density = density);
+                    prefs::update(cx, |prefs| prefs.quota_style = style);
                     this.redraw_quota(cx);
                 }))
         };
@@ -597,29 +599,45 @@ impl SettingsWindow {
             .child(line(0.9, p.primary))
             .child(line(0.2, p.away))
             .child(line(0.7, p.primary));
-        let comfortable = div()
-            .gap(px(10.))
-            .child(div().w(px(56.)).h(px(6.)).rounded_full().bg(p.stroke_soft))
-            .child(mini_track(0.74, 0.34, p.primary, p))
-            .child(mini_track(0.18, 0.68, p.away, p));
-        // A falling usage line, drawn as steps; the projection past now is faint.
-        let burn = div().h(px(32.)).flex().items_end().children(
-            [30., 29., 28., 27., 25., 23., 20., 17., 13., 9., 5.]
-                .into_iter()
-                .enumerate()
-                .map(|(i, height)| {
+        let rings = div().child(
+            div()
+                .flex()
+                .justify_center()
+                .gap(px(12.))
+                .child(crate::ui::menu::ring(
+                    0.74,
+                    p.primary,
+                    p.stroke_soft,
+                    36.,
+                    4.,
+                ))
+                .child(crate::ui::menu::ring(0.18, p.away, p.stroke_soft, 36., 4.)),
+        );
+        let gauge = div().child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .child(crate::ui::menu::tick_gauge(
+                    0.74,
+                    p.primary,
+                    p.stroke_soft,
+                    44.,
+                ))
+                .child(
                     div()
                         .flex_1()
-                        .h(px(height))
-                        .border_t_2()
-                        .border_color(p.away)
-                        .when(i >= 8, |s| s.opacity(0.4))
-                }),
+                        .flex()
+                        .flex_col()
+                        .gap(px(4.))
+                        .child(div().w(px(32.)).h(px(4.)).rounded_full().bg(p.stroke_soft))
+                        .child(div().w(px(48.)).h(px(8.)).rounded_full().bg(p.text_soft)),
+                ),
         );
-        let detailed = div()
-            .gap(px(8.))
-            .child(mini_track(0.18, 0.68, p.away, p))
-            .child(burn);
+        let bars = div()
+            .gap(px(12.))
+            .child(mini_track(0.74, 0.34, p.primary, p))
+            .child(mini_track(0.18, 0.68, p.away, p));
         div()
             .flex()
             .flex_col()
@@ -628,27 +646,13 @@ impl SettingsWindow {
                 div()
                     .flex()
                     .gap(px(12.))
-                    .child(option(
-                        Density::Compact,
-                        "Compact",
-                        "One line per account",
-                        compact,
-                    ))
-                    .child(option(
-                        Density::Comfortable,
-                        "Comfortable",
-                        "Every limit, with pace",
-                        comfortable,
-                    ))
-                    .child(option(
-                        Density::Detailed,
-                        "Detailed",
-                        "Adds trend and advice",
-                        detailed,
-                    )),
+                    .child(option(QuotaStyle::Compact, "Compact", "One line per account", compact))
+                    .child(option(QuotaStyle::Rings, "Rings", "Session and week at a glance", rings))
+                    .child(option(QuotaStyle::Gauge, "Gauge", "Big countdown to reset", gauge))
+                    .child(option(QuotaStyle::Bars, "Bars", "Every limit, with pace", bars)),
             )
             .child(note(
-                "The black tick shows where you’d be if you spread usage evenly until the reset. Fill left of the tick means you’re using it faster than it refills.",
+                "Every style warns when an account is on track to run out before it resets. In Bars, the black tick shows where you’d be if you spread usage evenly until the reset.",
                 p.text_sub,
             ).line_height(relative(1.5)))
     }

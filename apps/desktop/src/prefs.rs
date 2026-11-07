@@ -19,7 +19,8 @@ pub struct Prefs {
     pub hide_names: bool,
     pub sharing: crate::sharing::Prefs,
     pub menu_bar: MenuBar,
-    pub density: Density,
+    #[serde(alias = "density")]
+    pub quota_style: QuotaStyle,
     pub total_usage: TotalUsage,
     pub model_aggregation: ModelAggregation,
     pub proxy: crate::proxy::Prefs,
@@ -60,14 +61,19 @@ impl Default for MenuBar {
     }
 }
 
-/// How much the popup shows per account.
+/// How the popup draws each account's limits.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum Density {
+pub enum QuotaStyle {
+    /// One line per account.
     Compact,
+    Rings,
+    /// A tick gauge and a big countdown for the first limit.
+    Gauge,
+    /// Segmented bars with the pace tick. The retired densities read as this.
     #[default]
-    Comfortable,
-    Detailed,
+    #[serde(alias = "comfortable", alias = "detailed")]
+    Bars,
 }
 
 /// Whether an account's overall number counts only the session limit.

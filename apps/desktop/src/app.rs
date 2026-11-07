@@ -201,7 +201,7 @@ pub fn toggle_menu(anchor: Option<Point<Pixels>>, cx: &mut App) {
     let store = shell.store.clone();
     let height = menu::preferred_height_for(
         store.read(cx).overview.as_ref(),
-        crate::prefs::get(cx).density,
+        crate::prefs::get(cx).quota_style,
     );
     let bounds = menu_bounds(anchor, height, cx);
     let options = WindowOptions {
