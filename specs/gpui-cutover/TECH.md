@@ -1,12 +1,15 @@
 # GPUI cutover contract and milestone 0 evidence
 
-Status: milestone 0 is partially verified, not accepted. A signed GPUI scratch
-app completed a Sparkle update on macOS. Synthetic interactive Keychain tests
-also ran. Real credential migration and OAuth rollback remain unaccepted. This
-coordinating checkout has no production runtime or release-channel change.
+Status: milestone 0 is partially verified, not accepted. Signed GPUI experiments
+passed Sparkle update, notarization, and synthetic Keychain approval checks.
+The native shared-vault fix is now integrated into this checkout. Swift-to-GPUI
+update and rollback with shared-vault writes passed on macmini, but adoption
+from a populated isolated store and rollback after OAuth refresh remain open.
+No public release or update feed has changed.
 
 Research date: 2026-11-07. Repository baseline:
 `21af52d1d37a76ea76ac4abf5c4abf64ec33b33f`.
+Synchronization update: 2026-11-08, incorporating native commit `ae02c70d`.
 This contract records implementation defaults for the next milestones. It is not
 approval to publish releases, change update feeds, or delete Swift.
 
@@ -45,11 +48,11 @@ and [`Localization.swift`](../../Packages/QuotioCore/Sources/QuotioPresentation/
 
 ## Identity remains separate during preview
 
-Use `Quotio GPUI Preview` with proposed bundle and signing identifier
-`app.bytrong.quotio.gpui-preview`. Give the preview its own application support
-root, preferences, autostart registration, and `quotio-gpui-preview` vault
-namespace. Do not move an existing GPUI store silently when introducing this
-identity. Treat that store as a migration source too.
+Use `Quotio GPUI Preview` with proposed bundle identifier
+`app.bytrong.quotio.gpui-preview`. A separate preview must keep isolated storage,
+preferences, and autostart registration. The existing fallback vault namespace
+is `quotio-desktop`; a dedicated preview namespace is not implemented. Do not
+move an existing GPUI store silently when introducing a preview identity.
 
 After acceptance, the replacement uses the existing stable or beta app identity,
 respectively `app.bytrong.quotio` or `app.bytrong.quotio.beta`. Preserve the
@@ -57,16 +60,27 @@ existing `quotio` and `quotio-beta` URL schemes at cutover. The preview must not
 claim these schemes or the Swift update feeds. There is no preview deep-link
 scheme until a real flow needs one.
 
-These identities are not implemented or signing-verified. Today GPUI uses
+The proposed preview identity is not the production packaging configuration.
+Today GPUI uses
 `app.quotio.Quotio` in its app and autostart integration, while its Cargo runner
 signs as `app.Quotio.desktop`. Reconcile those consumers with bundle metadata
 before distributing a macOS preview.
 
-Choose separate preview storage rather than sharing the Swift or CLI vault.
-Sharing would require concurrent-writer, schema, and Keychain trust guarantees
-that have not been established. A common bundle ID alone grants none of them.
-Only one app owns an active proxy and sharing listener during transfer. Do not
-enable preview autostart or sharing as a side effect of migration.
+The owner subsequently chose shared storage for the signed macOS replacement.
+A bundled GPUI process whose signature satisfies the `dev.quotio.cli` Developer
+ID requirement now uses the CLI's shared vault and default `config.toml`. It
+also adopts the former Swift isolated store for its own bundle ID. Other builds
+retain `quotio-desktop` and `host.toml`. This is a signature check, not a Debug
+versus Release configuration check. A Debug binary re-signed with the qualifying
+Developer ID also enters shared mode. A preview signed that way is not isolated,
+even with a separate bundle ID.
+
+The Rust self-signature check does not pin a Team ID; existing Keychain ACLs
+still enforce their trusted designated requirements. Release signing must use
+the expected Team. A common bundle ID alone grants no credential access.
+Keep vault format 22 through the rollback window. Do not run competing OAuth
+refreshes, proxies, or sharing listeners during transfer. Shared-vault operation
+does not establish safety for concurrent app instances.
 
 Sources: [`app.rs`](../../apps/desktop/src/app.rs),
 [`autostart.rs`](../../apps/desktop/src/autostart.rs),
@@ -80,10 +94,11 @@ Mac user's data. On macOS, `AS` below means `~/Library/Application Support`.
 
 | Source | Accounts and host settings | Identity and other state |
 | --- | --- | --- |
-| Swift using an isolated helper | `AS/<bundle-id>/QuotioCLI`, with `AS/<bundle-id>/quotio-cli.toml` | Production namespace `quotio-macos`. Beta namespace is `quotio-macos-` followed by the first eight SHA256 bytes of its bundle ID, encoded as hex |
+| Swift using an isolated helper | `AS/<support>/QuotioCLI`, with `AS/<support>/quotio-cli.toml`; support is `Quotio` for production, otherwise the bundle ID | Production namespace `quotio-macos`. Beta namespace is `quotio-macos-` followed by the first eight SHA256 bytes of its bundle ID, encoded as hex |
 | Swift using a trusted standalone-compatible helper, or standalone CLI | `AS/quotio`, with `config.toml` | Shared CLI vault, not namespace `quotio-macos` |
 | Legacy Swift production | `AS/Quotio/Monitor/accounts-v1.json` | Credential services derive from current and legacy bundle IDs. Some credentials require the Swift PIV reader |
-| Existing GPUI | `AS/app.Quotio.Quotio/accounts`, with sibling `host.toml` and `desktop.json` | Namespace `quotio-desktop`. Proxy lives at `AS/app.Quotio.Quotio/proxy/config.yaml` |
+| GPUI with a qualifying bundled Developer ID signature | Shared CLI vault and `config.toml`, adopting the same-bundle Swift isolated source above | UI preferences and proxy retain their desktop paths; this is not full preferences migration |
+| GPUI without that signature or bundle metadata | `AS/app.Quotio.Quotio/accounts`, with sibling `host.toml` and `desktop.json` | Namespace `quotio-desktop`. Proxy lives at `AS/app.Quotio.Quotio/proxy/config.yaml` |
 
 The shared macOS Keychain service is `app.quotio.cli.accounts.v1`, account
 `vault`. An isolated service is `app.quotio.cli.accounts.<namespace>.v1`, account
@@ -94,8 +109,9 @@ mode from the release name or point a debug build at a shared production vault.
 
 `adopt::Source` currently requires an isolated namespace and its reader calls
 `Vault::isolated_interactive`. It does not describe the unnamespaced shared CLI
-source. Migration must support that source explicitly, not substitute the
-isolated Swift namespace.
+source. Qualifying macOS builds now use that shared source directly rather than
+importing it. Migration to a separate destination would still need explicit
+support for shared storage. Do not substitute an isolated namespace for it.
 
 For current GPUI on Linux, ProjectDirs uses `~/.config/quotio` for host and UI
 settings, and `~/.local/share/quotio/accounts` for accounts, subject to XDG
@@ -145,8 +161,11 @@ The source account remained present. The marker is source-scoped
 to empty target B returns without copying the account. Removing only that marker
 in the scratch source allows target B to receive it.
 
-This is a blocker to reusing the current helper for a new GPUI destination, not
-a demonstrated GPUI user-data incident. GPUI's adoption arguments are all `None`.
+This is a blocker to reusing the current helper for a new destination, not
+a demonstrated GPUI user-data incident. At the research baseline GPUI's adoption
+arguments were all `None`. The integrated native fix now adopts into the same
+shared destination as the signed Swift helper; its existing completion marker
+does not prove adoption into another destination.
 Do not delete existing users' markers as a workaround. Completion for the new
 flow must distinguish destinations and permit retry until required account,
 history, and configuration work completes. Keep original credentials and data.
@@ -383,7 +402,8 @@ noninteractive failures recorded `-25293`. These are application-level errors,
 not child-process exit statuses. The probes print errors without necessarily
 exiting nonzero, and most child exit codes were not captured separately.
 
-The host-shaped Allow-once result needs an explicit UX decision before cutover.
+The owner chose to retain the host-shaped authorization behavior and document
+that only **Always Allow** enables background monitoring.
 The interactive authorization query succeeds, but the function then calls
 `self.read()` on the noninteractive backend and returns a storage error.
 Background monitoring still lacks persistent access. Removing that check merely
@@ -424,6 +444,33 @@ same rotating credential concurrently.
 Sources: [`updater.rs`](../../apps/desktop/src/updater.rs),
 [`build_dmg.sh`](../../apps/macos/scripts/build_dmg.sh), and
 [`accounts/service.rs`](../../apps/cli/src/accounts/service.rs).
+
+### Swift update and shared-vault rollback on macmini
+
+The native thread subsequently tested a copy of Swift Beta 87 updating through
+its actual Sparkle updater to GPUI 88, using a disposable local feed. The first
+GPUI build still opened `quotio-desktop` and missed Swift's account. That finding
+led to native commit `ae02c70d`, now integrated without changing its patch.
+
+With the fix, the real GPUI embedded host opened the shared history database,
+wrote the shared vault, and did not create a `quotio-desktop` Keychain item.
+The vault revision progressed from 7 in Swift to 11 in GPUI and 14 after rollback
+to Swift 87. The borrowed-native `amp` account remained present, with zero
+Quotio Keychain prompts and no reported newer-format or corruption error.
+
+This test used the macmini GUI session and its login Keychain under a separate
+direct owner instruction recorded in the native thread. That authorization is
+not permission to use the owner's active credentials in later experiments.
+The account was not an owned OAuth credential and Quotio did not refresh it.
+The isolated source already had an adoption marker, so adoption was a no-op.
+History stayed at four observations because each run was shorter than its
+600-second polling interval. The test used SIGTERM, not menu Quit. It does not
+prove OAuth rotation, first adoption, new history writes, or pairing continuity.
+
+Evidence: `native-11-macmini-swift-to-gpui-rollback.txt` and
+`native-12-macmini-shared-vault-retest.txt` under
+`.amp/in/artifacts/gpui-cutover/`. The temporary installation, feed, and test
+materials were removed. No public feed changed.
 
 ## Native acceptance still blocks milestone 0
 
@@ -471,14 +518,14 @@ assessment, including after extracting its retained ZIP and adding quarantine.
 No publication was authorized or performed. Notarization does not replace the
 missing OAuth rollback or real-user migration tests.
 
-The retained repository change is this document only. The portable temporary
+The initial coordinating change retained only this document. Its portable
 example, encrypted scratch vaults, generated key, downloaded archives, and build
-directory were removed after evidence capture. No permanent test, production
-runtime change, commit, push, release dispatch, or Swift deletion was made in
-this coordinating checkout.
+directory were removed after evidence capture. The prompt experiments used an
+archived baseline, excluding the native shared-vault patch.
 
-During the prompt experiments, the native working tree contained separate
-owner-directed changes to `apps/desktop/src/host.rs`, `Cargo.toml`, and
-`Cargo.lock`. The archived baseline excluded them, and the native thread reported
-the same three modified paths afterward. Those changes were not transferred or
-integrated here. The experiments do not validate that newer implementation.
+On 2026-11-08, the owner requested synchronization of that native work. Commit
+`ae02c70d` was transferred as a verified Git bundle and integrated on top of the
+previous documentation commit. It changes only `apps/desktop/src/host.rs`,
+`Cargo.toml`, and `Cargo.lock`. The macmini retest above exercised that patch;
+the older baseline prompt and full-suite checks do not validate it. No permanent
+test, release dispatch, public-feed change, or Swift deletion was added.
