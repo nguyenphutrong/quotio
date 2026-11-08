@@ -725,6 +725,9 @@ pub struct Absorbed {
     pub refreshed: usize,
     pub skipped: usize,
     pub history: Option<crate::history::Rewrite>,
+    /// Unambiguous source logical IDs mapped to destination logical IDs.
+    pub account_mappings: std::collections::BTreeMap<String, String>,
+    pub kept_target_pairing: bool,
 }
 
 impl Credential {
@@ -774,6 +777,17 @@ impl Document {
                 .resolved
                 .as_ref()
                 .map(|registry| crate::history::Rewrite::onto(registry.host_id.clone()));
+            let account_mappings = other
+                .accounts
+                .iter()
+                .filter_map(|account| {
+                    let id = other
+                        .resolved
+                        .as_ref()?
+                        .account_id_for_source(&account.id)?;
+                    Some((id.to_owned(), id.to_owned()))
+                })
+                .collect();
             *self = other;
             return Ok(Absorbed {
                 changed: true,
@@ -781,6 +795,8 @@ impl Document {
                 refreshed: 0,
                 skipped: 0,
                 history,
+                account_mappings,
+                kept_target_pairing: false,
             });
         }
         let before = serde_json::to_vec(&*self).map_err(|_| AccountError::Corrupt)?;
@@ -845,17 +861,19 @@ impl Document {
             self.accounts.push(account);
             added += 1;
         }
+        let kept_target_pairing = other.has_pairing() && self.has_pairing();
         let take_host = other.has_pairing() && !self.has_pairing();
-        let history = match (self.resolved.as_mut(), other.resolved.take()) {
+        let (history, account_mappings) = match (self.resolved.as_mut(), other.resolved.take()) {
             (Some(mine), Some(theirs)) => {
                 if take_host {
                     mine.host_id = theirs.host_id.clone();
                 } else if other.has_pairing() && mine.host_id != theirs.host_id {
                     tracing::warn!("vault_adoption_pairing_dropped");
                 }
-                Some(mine.absorb(theirs, &id_map)?)
+                let (history, mappings) = mine.absorb(theirs, &id_map)?;
+                (Some(history), mappings)
             }
-            _ => None,
+            _ => (None, Default::default()),
         };
         if take_host {
             self.companion_identity = other.companion_identity.take();
@@ -906,6 +924,8 @@ impl Document {
             refreshed,
             skipped,
             history,
+            account_mappings,
+            kept_target_pairing,
         })
     }
 }

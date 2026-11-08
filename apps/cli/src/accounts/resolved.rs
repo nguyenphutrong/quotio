@@ -481,7 +481,7 @@ impl Registry {
         &mut self,
         other: Registry,
         id_map: &BTreeMap<String, String>,
-    ) -> Result<crate::history::Rewrite, AccountError> {
+    ) -> Result<(crate::history::Rewrite, BTreeMap<String, String>), AccountError> {
         let mut landed: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
         for (source_id, binding) in &other.bindings {
             let Some(id) = id_map.get(source_id) else {
@@ -505,7 +505,17 @@ impl Registry {
                             .map(|held| held.account_id.clone())
                             .min()
                     });
-                    let logical = joined.unwrap_or_else(|| binding.account_id.clone());
+                    let logical = match joined {
+                        Some(logical) => logical,
+                        None if self
+                            .bindings
+                            .values()
+                            .any(|held| held.account_id == binding.account_id) =>
+                        {
+                            random_string()?
+                        }
+                        None => binding.account_id.clone(),
+                    };
                     self.bindings.insert(
                         id.clone(),
                         Binding {
@@ -526,12 +536,17 @@ impl Registry {
             .values()
             .map(|binding| binding.account_id.clone())
             .collect();
-        let accounts: BTreeMap<String, String> = landed
+        let mappings: BTreeMap<String, String> = landed
             .iter()
             .filter_map(|(old, targets)| {
                 let target = targets.first()?;
-                (targets.len() == 1 && target != old).then(|| (old.clone(), target.clone()))
+                (targets.len() == 1).then(|| (old.clone(), target.clone()))
             })
+            .collect();
+        let accounts: BTreeMap<String, String> = mappings
+            .iter()
+            .filter(|(old, target)| old != target)
+            .map(|(old, target)| (old.clone(), target.clone()))
             .collect();
         let mut epochs = BTreeMap::new();
         for old in landed.keys() {
@@ -596,11 +611,14 @@ impl Registry {
                 .extend(keys);
         }
         self.revision = self.revision.max(other.revision);
-        Ok(crate::history::Rewrite {
-            host: self.host_id.clone(),
-            account_renames: accounts,
-            epoch_renames: epochs,
-        })
+        Ok((
+            crate::history::Rewrite {
+                host: self.host_id.clone(),
+                account_renames: accounts,
+                epoch_renames: epochs,
+            },
+            mappings,
+        ))
     }
 
     pub fn synchronize(&mut self, accounts: &[Account]) -> Result<(), AccountError> {

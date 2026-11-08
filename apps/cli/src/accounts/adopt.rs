@@ -7,17 +7,36 @@ pub struct Source {
     pub config: Option<PathBuf>,
 }
 
-#[derive(serde::Serialize)]
-struct Marker {
-    schema_version: u32,
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Receipt {
+    pub schema_version: u32,
     #[serde(with = "time::serde::rfc3339")]
-    adopted_at: time::OffsetDateTime,
-    accounts_added: usize,
-    accounts_refreshed: usize,
-    history_rows: u64,
+    pub adopted_at: time::OffsetDateTime,
+    pub accounts_added: usize,
+    pub accounts_refreshed: usize,
+    pub history_rows: u64,
+    #[serde(default)]
+    pub source_host: Option<String>,
+    #[serde(default)]
+    pub target_host: Option<String>,
+    /// Absent in v1 receipts, where a colliding ID cannot safely be reconstructed.
+    #[serde(default)]
+    pub account_mappings: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(default)]
+    pub kept_target_pairing: bool,
 }
 
 impl Source {
+    pub fn receipt(&self) -> std::io::Result<Option<Receipt>> {
+        match std::fs::read(self.marker_path()) {
+            Ok(bytes) => serde_json::from_slice(&bytes)
+                .map(Some)
+                .map_err(std::io::Error::other),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     fn marker_path(&self) -> PathBuf {
         self.data_dir
             .join(self.namespace.lock_name())
@@ -84,6 +103,10 @@ pub async fn vault(
             return false;
         }
     };
+    let source_host = document
+        .resolved
+        .as_ref()
+        .map(|registry| registry.host_id.clone());
     let absorbed = match absorb(target, document).await {
         Ok(absorbed) => absorbed,
         Err(error) => {
@@ -91,6 +114,10 @@ pub async fn vault(
             return false;
         }
     };
+    let target_host = absorbed
+        .history
+        .as_ref()
+        .map(|rewrite| rewrite.host.clone());
     let rows = match absorbed.history {
         None => Ok(0),
         Some(rewrite) => match history {
@@ -117,12 +144,16 @@ pub async fn vault(
         tracing::info!("vault_adoption_marker_deferred");
         return absorbed.changed || rows > 0;
     }
-    let marker = Marker {
-        schema_version: 1,
+    let marker = Receipt {
+        schema_version: 2,
         adopted_at: time::OffsetDateTime::now_utc(),
         accounts_added: absorbed.added,
         accounts_refreshed: absorbed.refreshed,
         history_rows: rows,
+        source_host,
+        target_host,
+        account_mappings: Some(absorbed.account_mappings),
+        kept_target_pairing: absorbed.kept_target_pairing,
     };
     match write_marker(source, &marker) {
         Ok(()) => tracing::info!(
@@ -151,7 +182,7 @@ async fn absorb(
     Ok(absorbed)
 }
 
-fn write_marker(source: &Source, marker: &Marker) -> std::io::Result<()> {
+fn write_marker(source: &Source, marker: &Receipt) -> std::io::Result<()> {
     use std::io::Write;
     let bytes = serde_json::to_vec(marker)?;
     let path = source.marker_path();
