@@ -1,6 +1,6 @@
 //! Self-update for the Windows and Linux builds. Releases tagged `desktop-v*` carry
 //! one executable per platform and its Ed25519 signature (`<asset>.sig`), made by
-//! `.github/workflows/desktop-release.yml`. macOS ships the Swift app and Sparkle.
+//! `.github/workflows/desktop-release.yml`. macOS uses bundled Sparkle instead.
 use std::{path::PathBuf, sync::OnceLock, time::Duration};
 
 use anyhow::{Context as _, Result, anyhow};
@@ -59,6 +59,8 @@ struct Updates {
     state: State,
     /// When the last check reached GitHub.
     checked: Option<chrono::DateTime<chrono::Local>>,
+    #[cfg(target_os = "macos")]
+    sparkle: Option<crate::sparkle::Controller>,
 }
 
 impl Global for Updates {}
@@ -71,19 +73,63 @@ pub fn checked(cx: &App) -> Option<chrono::DateTime<chrono::Local>> {
     cx.global::<Updates>().checked
 }
 
+pub fn supported(cx: &App) -> bool {
+    ASSET.is_some() || uses_sparkle(cx)
+}
+
+pub fn uses_sparkle(_cx: &App) -> bool {
+    #[cfg(target_os = "macos")]
+    return _cx.global::<Updates>().sparkle.is_some();
+    #[cfg(not(target_os = "macos"))]
+    false
+}
+
+pub fn version() -> String {
+    #[cfg(target_os = "macos")]
+    if let Some(version) = crate::sparkle::version() {
+        return version;
+    }
+    env!("CARGO_PKG_VERSION").to_owned()
+}
+
+pub fn automatic(on: bool, cx: &mut App) {
+    crate::prefs::update(cx, |prefs| prefs.manual_updates = !on);
+    #[cfg(target_os = "macos")]
+    if let Some(sparkle) = &cx.global::<Updates>().sparkle {
+        sparkle.automatic(on);
+    }
+    cx.refresh_windows();
+}
+
 /// `check_now` is off for fixtures, which should not reach the network.
 pub fn init(runtime: tokio::runtime::Handle, check_now: bool, cx: &mut App) {
     let http = reqwest::Client::builder()
         .user_agent(concat!("quotio-desktop/", env!("CARGO_PKG_VERSION")))
         .build()
         .expect("TLS backend is compiled in");
+    #[cfg(target_os = "macos")]
+    let sparkle =
+        check_now.then(|| crate::sparkle::Controller::load(!crate::prefs::get(cx).manual_updates));
+    #[cfg(target_os = "macos")]
+    let initial = match &sparkle {
+        Some(Err(error)) => State::Failed(format!("{error:#}")),
+        _ => State::Idle,
+    };
     cx.set_global(Updates {
         http,
         runtime,
+        #[cfg(not(target_os = "macos"))]
         state: State::Idle,
+        #[cfg(target_os = "macos")]
+        state: initial,
         checked: None,
+        #[cfg(target_os = "macos")]
+        sparkle: sparkle.and_then(Result::ok),
     });
-    if let Ok(exe) = std::env::current_exe() {
+    // Never replace or clean files inside a signed macOS bundle.
+    if ASSET.is_some()
+        && let Ok(exe) = std::env::current_exe()
+    {
         // ponytail: Windows keeps the previous executable locked until it exits, so
         // it may linger until the next update removes it.
         let _ = std::fs::remove_file(exe.with_extension("old"));
@@ -109,6 +155,11 @@ pub fn init(runtime: tokio::runtime::Handle, check_now: bool, cx: &mut App) {
 }
 
 pub fn check(cx: &mut App) {
+    #[cfg(target_os = "macos")]
+    if let Some(sparkle) = &cx.global::<Updates>().sparkle {
+        sparkle.check();
+        return;
+    }
     let updates = cx.global_mut::<Updates>();
     updates.state = State::Checking;
     let task = updates.runtime.spawn(latest(updates.http.clone()));

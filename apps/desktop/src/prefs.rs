@@ -24,6 +24,7 @@ pub struct Prefs {
     pub total_usage: TotalUsage,
     pub model_aggregation: ModelAggregation,
     pub proxy: crate::proxy::Prefs,
+    pub migration: crate::migration::Prefs,
     /// Check for app updates only when asked, not at start and once a day.
     pub manual_updates: bool,
 }
@@ -154,6 +155,20 @@ impl Store {
         let path = path()
             .map_err(|error| eprintln!("Preferences will not be saved: {error:#}"))
             .ok();
+        #[cfg(target_os = "macos")]
+        if persist
+            && path.as_ref().is_some_and(|path| {
+                std::fs::symlink_metadata(path)
+                    .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+            })
+            && let Some(prefs) = swift_preferences()
+        {
+            let store = Self { path, prefs };
+            if let Err(error) = store.save() {
+                eprintln!("Could not save migrated Swift preferences: {error:#}");
+            }
+            return store;
+        }
         let prefs = path
             .as_ref()
             .and_then(|path| std::fs::read(path).ok())
@@ -169,7 +184,7 @@ impl Store {
         }
     }
 
-    fn save(&self) -> Result<()> {
+    pub(crate) fn save(&self) -> Result<()> {
         let Some(path) = &self.path else {
             return Ok(());
         };
@@ -181,6 +196,156 @@ impl Store {
         std::fs::rename(&temp, path)?;
         Ok(())
     }
+}
+
+/// Read only this bundle's Swift preferences; never change its UserDefaults.
+#[cfg(target_os = "macos")]
+fn swift_preferences() -> Option<Prefs> {
+    use objc2_foundation::{NSBundle, NSData, NSDictionary, NSNumber, NSString, NSUserDefaults};
+
+    let bundle = NSBundle::mainBundle().bundleIdentifier()?;
+    let domain = NSUserDefaults::standardUserDefaults().persistentDomainForName(&bundle)?;
+    if ![
+        "appearanceMode",
+        "hideSensitiveInfo",
+        "quotaDisplayMode",
+        "menuBarColorMode",
+        "quotaDisplayStyle",
+        "totalUsageMode",
+        "modelAggregationMode",
+        "showMenuBarIcon",
+        "menuBarShowQuota",
+        "menuBarMaxItems",
+        "menuBarStackClaudeQuotaWindows",
+        "showInDock",
+        "notificationsEnabled",
+        "quotaAlertThreshold",
+        "notifyOnQuotaLow",
+        "notifyOnCooling",
+        "notifyOnProxyCrash",
+        "notifyOnUpgradeAvailable",
+        "autoCheckUpdates",
+        "menuBarProviderSelectionV2",
+        "menuBarSelectedQuotaItems",
+        "hasUserModifiedMenuBar",
+    ]
+    .iter()
+    .any(|key| domain.objectForKey(&NSString::from_str(key)).is_some())
+    {
+        return None;
+    }
+    let string = |key: &str| {
+        domain
+            .objectForKey(&NSString::from_str(key))?
+            .downcast::<NSString>()
+            .ok()
+            .map(|value| value.to_string())
+    };
+    let number = |key: &str| {
+        domain
+            .objectForKey(&NSString::from_str(key))?
+            .downcast::<NSNumber>()
+            .ok()
+    };
+    let mut prefs = Prefs {
+        notifications: Notifications {
+            proxy_update: true,
+            ..Notifications::default()
+        },
+        ..Prefs::default()
+    };
+    for (key, target) in [
+        ("hideSensitiveInfo", &mut prefs.hide_names),
+        ("showMenuBarIcon", &mut prefs.menu_bar.show_icon),
+        ("menuBarShowQuota", &mut prefs.menu_bar.show_quota),
+        (
+            "menuBarStackClaudeQuotaWindows",
+            &mut prefs.menu_bar.stack_paired,
+        ),
+        ("showInDock", &mut prefs.menu_bar.show_in_dock),
+        ("notificationsEnabled", &mut prefs.notifications.enabled),
+        ("hasUserModifiedMenuBar", &mut prefs.menu_bar.user_modified),
+        ("notifyOnQuotaLow", &mut prefs.notifications.quota_low),
+        ("notifyOnCooling", &mut prefs.notifications.cooling_down),
+        ("notifyOnProxyCrash", &mut prefs.notifications.proxy_stopped),
+        (
+            "notifyOnUpgradeAvailable",
+            &mut prefs.notifications.proxy_update,
+        ),
+    ] {
+        if let Some(value) = number(key) {
+            *target = value.boolValue();
+        }
+    }
+    if let Some(value) = number("autoCheckUpdates") {
+        prefs.manual_updates = !value.boolValue();
+    }
+    if let Some(value) = number("menuBarMaxItems") {
+        prefs.menu_bar.max_items = value.integerValue().clamp(1, 10) as u8;
+    }
+    if let Some(value) = number("quotaAlertThreshold") {
+        let value = value.doubleValue();
+        if value.is_finite() && value > 0.0 {
+            prefs.notifications.threshold = value.min(100.0) as u8;
+        }
+    }
+    prefs.appearance = match string("appearanceMode").as_deref() {
+        Some("dark") => Appearance::Dark,
+        Some("light") => Appearance::Light,
+        _ => Appearance::System,
+    };
+    prefs.quota_display = match string("quotaDisplayMode").as_deref() {
+        Some("used") => QuotaDisplay::Used,
+        _ => QuotaDisplay::Remaining,
+    };
+    prefs.tray_icon = match string("menuBarColorMode").as_deref() {
+        Some("colored") => TrayIcon::Colored,
+        _ => TrayIcon::Monochrome,
+    };
+    prefs.quota_style = match string("quotaDisplayStyle").as_deref() {
+        Some("compact" | "lowestBar") => QuotaStyle::Compact,
+        _ => QuotaStyle::Bars,
+    };
+    prefs.total_usage = match string("totalUsageMode").as_deref() {
+        Some("combined") => TotalUsage::Combined,
+        _ => TotalUsage::SessionOnly,
+    };
+    prefs.model_aggregation = match string("modelAggregationMode").as_deref() {
+        Some("average") => ModelAggregation::Average,
+        _ => ModelAggregation::Lowest,
+    };
+    let v2 = domain.objectForKey(&NSString::from_str("menuBarProviderSelectionV2"));
+    let legacy = v2.is_none();
+    let data = match v2 {
+        Some(value) => value
+            .downcast::<NSDictionary>()
+            .ok()
+            .and_then(|selection| selection.objectForKey(&NSString::from_str("items"))),
+        None => domain.objectForKey(&NSString::from_str("menuBarSelectedQuotaItems")),
+    };
+    if let Some(data) = data.and_then(|value| value.downcast::<NSData>().ok()) {
+        match serde_json::from_slice::<Vec<crate::migration::Pin>>(&data.to_vec()) {
+            Ok(mut pins) => {
+                if legacy {
+                    pins.retain(|pin| pin.provider != "gemini-cli");
+                    for pin in &mut pins {
+                        pin.provider = match pin.provider.as_str() {
+                            "github-copilot" => "copilot",
+                            "factory-droid" => "factory",
+                            "vertex" => "vertexai",
+                            "devin" => "devin-desktop",
+                            "glm" => "zai",
+                            provider => provider,
+                        }
+                        .to_owned();
+                    }
+                }
+                prefs.migration.pending_pins = Some(pins);
+            }
+            Err(_) => prefs.migration.pin_warning = true,
+        }
+    }
+    Some(prefs)
 }
 
 fn path() -> Result<PathBuf> {

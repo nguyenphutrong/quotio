@@ -97,6 +97,7 @@ impl QuotaStore {
                 {
                     return;
                 }
+                crate::migration::restore_pins(&snapshot, cx);
                 // A merged login keeps its menu-bar place under the account it joined.
                 let pinned = &prefs::get(cx).menu_bar.accounts;
                 if pinned

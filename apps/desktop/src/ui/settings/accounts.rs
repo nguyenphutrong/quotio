@@ -951,6 +951,7 @@ impl SettingsWindow {
         prefs::update(cx, |prefs| {
             prefs.menu_bar.accounts = ids;
             prefs.menu_bar.user_modified = true;
+            prefs.migration.pending_pins = None;
             if pin {
                 prefs.menu_bar.show_icon = true;
                 prefs.menu_bar.show_quota = true;

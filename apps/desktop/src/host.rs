@@ -91,6 +91,8 @@ impl std::error::Error for HostError {}
 pub struct HostOptions {
     /// Run only the deterministic `mock` provider and skip saved accounts.
     pub demo: bool,
+    /// Explicitly selected Swift profile; absent means use the shared vault only.
+    pub adopt_swift: Option<String>,
 }
 
 /// Host running on a private Tokio runtime inside this process.
@@ -165,9 +167,10 @@ impl Drop for EmbeddedHost {
 
 fn serve_args(options: &HostOptions) -> Result<ServeArgs> {
     let swift = if options.demo { None } else { swift_vault() };
+    let shared = swift.is_some();
     let (provider, vault_namespace, account_data_dir) = if options.demo {
         (vec![Provider::Mock], None, None)
-    } else if swift.is_some() {
+    } else if shared {
         // Shares the standalone CLI's vault, as the Swift app's helper does.
         (Vec::new(), None, None)
     } else {
@@ -177,13 +180,16 @@ fn serve_args(options: &HostOptions) -> Result<ServeArgs> {
             .map_err(|error: &str| anyhow!(error))?;
         (Vec::new(), Some(namespace), Some(account_data_dir()?))
     };
+    let swift = swift
+        .filter(|(bundle, _)| options.adopt_swift.as_ref() == Some(bundle))
+        .map(|(_, source)| source);
     Ok(ServeArgs {
         parent_pipe: false,
         listen: SocketAddr::from(([127, 0, 0, 1], 0)),
         provider,
         // Its own settings too, apart from the command-line tool's `config.toml`,
         // unless it shares that tool's vault.
-        config: if swift.is_some() {
+        config: if shared {
             None
         } else {
             Some(project_dirs()?.config_dir().join("host.toml"))
@@ -230,18 +236,10 @@ fn account_data_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
-/// The vault the Swift app kept for this bundle before this build replaced it.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
-struct SwiftVault {
-    namespace: quotio::accounts::vault::VaultNamespace,
-    data_dir: PathBuf,
-    config: Option<PathBuf>,
-}
-
 /// Mirrors the Swift app: only a Developer ID build signed as the standalone CLI
 /// (`dev.quotio.cli`) may use the shared vault; others keep their own.
 #[cfg(target_os = "macos")]
-fn swift_vault() -> Option<SwiftVault> {
+pub(crate) fn swift_vault() -> Option<(String, quotio::accounts::adopt::Source)> {
     use security_framework::os::macos::code_signing::{Flags, SecCode, SecRequirement};
     let requirement: SecRequirement = r#"identifier "dev.quotio.cli" and anchor apple generic and certificate 1[field.1.2.840.113635.100.6.2.6] exists"#
         .parse()
@@ -269,15 +267,18 @@ fn swift_vault() -> Option<SwiftVault> {
         .data_dir()
         .join(if production { "Quotio" } else { &bundle });
     let config = support.join("quotio-cli.toml");
-    Some(SwiftVault {
-        namespace: namespace.parse().ok()?,
-        data_dir: support.join("QuotioCLI"),
-        config: config.is_file().then_some(config),
-    })
+    Some((
+        bundle,
+        quotio::accounts::adopt::Source {
+            namespace: namespace.parse().ok()?,
+            data_dir: support.join("QuotioCLI"),
+            config: config.is_file().then_some(config),
+        },
+    ))
 }
 
 #[cfg(not(target_os = "macos"))]
-fn swift_vault() -> Option<SwiftVault> {
+pub(crate) fn swift_vault() -> Option<(String, quotio::accounts::adopt::Source)> {
     None
 }
 

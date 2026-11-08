@@ -13,6 +13,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/desktop-release.yml'
+      - 'apps/desktop/scripts/package.py'
+      - 'apps/desktop/assets/app-icon.png'
 
 permissions: {}
 concurrency:
@@ -37,11 +39,9 @@ jobs:
           - os: windows-2025
             target: x86_64-pc-windows-msvc
             binary: quotio-desktop.exe
-            asset: quotio-desktop-x86_64-pc-windows-msvc.exe
           - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             binary: quotio-desktop
-            asset: quotio-desktop-x86_64-unknown-linux-gnu
     defaults:
       run:
         # Job defaults replace the workflow's; without this Windows runs pwsh.
@@ -52,7 +52,6 @@ jobs:
       VERSION: ${{ inputs.version }}
       TARGET: ${{ matrix.target }}
       BINARY: ${{ matrix.binary }}
-      ASSET: ${{ matrix.asset }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,8 +77,8 @@ jobs:
       - name: Build
         run: |
           cargo +stable build --locked --release --target "$TARGET"
-          mkdir -p artifacts
-          cp "target/$TARGET/release/$BINARY" "artifacts/$ASSET"
+          python scripts/package.py --target "$TARGET" \
+            --binary "target/$TARGET/release/$BINARY" --output artifacts
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: desktop-${{ matrix.target }}

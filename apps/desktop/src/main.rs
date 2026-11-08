@@ -7,12 +7,15 @@ mod assets;
 mod autostart;
 mod catalog;
 mod host;
+mod migration;
 mod model;
 mod notifier;
 mod prefs;
 mod providers;
 mod proxy;
 mod sharing;
+#[cfg(target_os = "macos")]
+mod sparkle;
 mod store;
 mod theme;
 mod tray;
@@ -70,6 +73,7 @@ fn parse_args() -> Result<Options> {
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     let options = parse_args()?;
+    let preferences = prefs::Store::load(options.fixture.is_none());
 
     let (client, clock, host): (Arc<dyn HostClient>, Clock, Option<EmbeddedHost>) =
         match &options.fixture {
@@ -80,7 +84,16 @@ fn main() -> Result<()> {
                 (Arc::new(FixtureClient(snapshot)), Clock::Frozen(now), None)
             }
             None => {
-                let host = EmbeddedHost::start(HostOptions { demo: options.demo })?;
+                let host = EmbeddedHost::start(HostOptions {
+                    demo: options.demo,
+                    adopt_swift: preferences
+                        .prefs
+                        .migration
+                        .choice
+                        .as_ref()
+                        .filter(|choice| choice.include_isolated)
+                        .map(|choice| choice.bundle.clone()),
+                })?;
                 (host.client(), Clock::System, Some(host))
             }
         };
@@ -104,7 +117,10 @@ fn main() -> Result<()> {
         if let Err(error) = assets::load_fonts(cx) {
             eprintln!("Could not load bundled fonts: {error:#}");
         }
-        cx.set_global(prefs::Store::load(options.fixture.is_none()));
+        cx.set_global(preferences);
+        cx.set_global(migration::Migration::new(
+            options.fixture.is_none() && !options.demo,
+        ));
         let appearance = prefs::get(cx).appearance;
         theme::apply(appearance, cx.window_appearance(), cx);
 
@@ -163,6 +179,20 @@ fn main() -> Result<()> {
 
         if options.show_settings || !has_tray {
             app::open_settings(cx);
+        }
+        if cx
+            .global::<migration::Migration>()
+            .source
+            .as_ref()
+            .is_some_and(|(bundle, _)| {
+                prefs::get(cx)
+                    .migration
+                    .choice
+                    .as_ref()
+                    .is_none_or(|choice| choice.bundle != *bundle)
+            })
+        {
+            app::open_settings_at(ui::settings::Page::Privacy, cx);
         }
         // Without a tray nothing could reopen or quit a windowless app.
         if !has_tray {

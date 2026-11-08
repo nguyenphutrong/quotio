@@ -14,7 +14,7 @@ use crate::model::mask;
 use crate::prefs;
 use crate::providers;
 use crate::theme::{Palette, palette};
-use crate::ui::{icon, provider_logo};
+use crate::ui::{ButtonKind, button, icon, provider_logo};
 
 impl SettingsWindow {
     pub(super) fn privacy_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
@@ -85,6 +85,9 @@ impl SettingsWindow {
             div().flex().flex_col().child(hide_row).child(preview),
             &p,
         )];
+        if let Some(migration) = migration_section(&p, cx) {
+            sections.insert(0, migration);
+        }
         if macos {
             let open = div()
                 .id("open-keychain-access")
@@ -137,6 +140,119 @@ impl SettingsWindow {
         .children(sections)
         .into_any_element()
     }
+}
+
+fn migration_section(p: &Palette, cx: &gpui_kit::App) -> Option<Div> {
+    let migration = cx.global::<crate::migration::Migration>();
+    let (bundle, source) = migration.source.as_ref()?;
+    let prefs = prefs::get(cx);
+    let choice = prefs
+        .migration
+        .choice
+        .as_ref()
+        .filter(|choice| choice.bundle == *bundle);
+    let text = |text: String| div().text_size(px(13.)).text_color(p.text_sub).child(text);
+    let mut content = div().flex().flex_col().gap(px(12.))
+        .child(text(format!("Swift profile: {bundle}. Source: {}. Destination: the standalone CLI’s shared vault.", home_relative(&source.data_dir.display().to_string()))))
+        .child(text("Quit Swift Quotio first. Existing destination labels and enabled states win; newer source credentials may replace older ones. Source credentials and history are retained; only a completion receipt is added. If both stores have paired devices, the destination identity and grants win: source devices may need pairing again.".into()))
+        .child(text("Legacy Monitor/PIV accounts are not read by GPUI. Migrate them through the retained signed Swift app first, or sign in again. No proxy, sharing listener or login item is enabled by this choice.".into()));
+    match choice {
+        None => {
+            content = content.child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(8.))
+                    .child(
+                        button(
+                            "migration-shared",
+                            "Use shared vault only",
+                            ButtonKind::Secondary,
+                            p,
+                        )
+                        .on_click(|_, _, cx| crate::migration::choose(false, cx)),
+                    )
+                    .child(
+                        button(
+                            "migration-swift",
+                            "Merge Swift vault & restart",
+                            ButtonKind::Primary,
+                            p,
+                        )
+                        .on_click(|_, _, cx| crate::migration::choose(true, cx)),
+                    ),
+            );
+        }
+        Some(choice) if !choice.include_isolated => {
+            content = content.child(text(
+                "Selected: shared vault only. The isolated Swift vault has not been imported."
+                    .into(),
+            ));
+            content = content.child(
+                button(
+                    "migration-swift",
+                    "Merge Swift vault & restart",
+                    ButtonKind::Secondary,
+                    p,
+                )
+                .on_click(|_, _, cx| crate::migration::choose(true, cx)),
+            );
+        }
+        Some(_) => match source.receipt() {
+            Ok(Some(receipt)) => {
+                content = content.child(text(format!("Import completed {}. Last attempt: {} accounts added, {} refreshed, {} history rows. Source host: {}. Destination host: {}.", receipt.adopted_at, receipt.accounts_added, receipt.accounts_refreshed, receipt.history_rows, receipt.source_host.as_deref().unwrap_or("not recorded"), receipt.target_host.as_deref().unwrap_or("not recorded"))));
+                if receipt.kept_target_pairing || receipt.schema_version == 1 {
+                    content = content.child(text("Check paired devices. The destination pairing was retained, or this old receipt cannot report pairing. Pair source devices again if access fails.".into()));
+                }
+            }
+            status => {
+                let message = if status.is_err() {
+                    "The completion receipt could not be read."
+                } else {
+                    "The import has not completed. Allow Keychain access (Always Allow for background reads)."
+                };
+                content = content.child(text(format!("{message} Some accounts may already be copied; retries do not duplicate them.")))
+                    .child(button("migration-retry", "Retry on restart", ButtonKind::Secondary, p)
+                        .on_click(|_, _, cx| crate::migration::choose(true, cx)));
+            }
+        },
+    }
+    if prefs.migration.pending_pins.is_some() {
+        content = content.child(text("Menu-bar pins are waiting for your source choice and its accounts. Selecting pins on Accounts overrides this import.".into()));
+    }
+    if prefs.migration.pin_warning {
+        content = content.child(text("Some pins could not be matched safely (remote hosts, old receipts or missing accounts). Review pins on Accounts; they were not guessed from colliding IDs.".into()));
+    }
+    content = content.child(text("Proxy import copies only the port, auth-directory reference and client API keys into a new local-only v8 config. Management credentials, binaries, routing and provider overrides are not copied. Auth files stay in their source directory; review custom settings before starting the proxy.".into()));
+    if std::fs::symlink_metadata(crate::proxy::config_path()).is_ok() {
+        content = content.child(text(
+            "A GPUI proxy configuration already exists and will not be overwritten.".into(),
+        ));
+    } else {
+        content = content.child(
+            button(
+                "migration-proxy",
+                "Import Swift proxy settings",
+                ButtonKind::Secondary,
+                p,
+            )
+            .on_click(|_, _, cx| crate::migration::import_proxy(cx)),
+        );
+    }
+    if let Some(error) = &migration.error {
+        content = content.child(
+            div()
+                .text_size(px(13.))
+                .text_color(p.error)
+                .child(error.clone()),
+        );
+    }
+    Some(section(
+        "Move from Swift",
+        "Choose which vault to use before reading the isolated Swift store. The choice is scoped to this exact bundle/profile.",
+        content,
+        p,
+    ))
 }
 
 /// A card of login rows separated by hairlines, or `empty` when there are none.

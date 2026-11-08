@@ -3,8 +3,15 @@
 Status: milestone 0 is partially verified, not accepted. Signed GPUI experiments
 passed Sparkle update, notarization, and synthetic Keychain approval checks.
 The native shared-vault fix is now integrated into this checkout. Swift-to-GPUI
-update and rollback with shared-vault writes passed on macmini, but adoption
-from a populated isolated store and rollback after OAuth refresh remain open.
+update and rollback with shared-vault writes passed on macmini. Synthetic
+adoption from a populated isolated store also passed in the actual GPUI host.
+On 2026-11-08, the owner waived real OAuth refresh and rollback testing and
+requested work on subsequent milestones. This is a waiver, not a passing test.
+Migration acceptance remains in milestone 1. Desktop CI at `67a8aede` passed
+on macOS 15, Ubuntu 24.04, and Windows 2025.
+Milestones 1 and 2 now have local migration-choice, pin/proxy import, Sparkle,
+and packaging implementations. They are not accepted: native GUI checks are
+paused on the in-use MacBook, and Windows package runtime is untested.
 No public release or update feed has changed.
 
 Research date: 2026-11-07. Repository baseline:
@@ -472,7 +479,62 @@ Evidence: `native-11-macmini-swift-to-gpui-rollback.txt` and
 `.amp/in/artifacts/gpui-cutover/`. The temporary installation, feed, and test
 materials were removed. No public feed changed.
 
-## Native acceptance still blocks milestone 0
+### Synthetic adoption from a populated isolated store
+
+The next probe used native commit `ae02c70d`, whose runtime patch is identical
+to the synchronized `fe3f7998`. A scratch copy added the mandatory disposable
+Keychain scope and a probe after `app::init`. A Developer ID signed GPUI bundle
+ran the actual `EmbeddedHost` and `serve_args`, not a replacement host adapter.
+It used a scratch HOME and bundle ID `app.bytrong.quotio.m0-adopt`.
+
+The source contained one disabled Claude OAuth-shaped synthetic account, a
+client read grant, a resolved host identity, and six mock-history observations.
+The source config enabled only the mock provider. The shared destination started
+empty. The first writer omitted refresh-ownership/schema metadata and produced
+`Err(Corrupt)`. That attempt was discarded. The corrected scratch writer used
+the document's ownership API, and a fresh HOME and disposable Keychain passed
+the seed/read check before adoption.
+
+| Scenario | Observed result |
+| --- | --- |
+| First GPUI adoption | `added=1 refreshed=0 skipped=0 rows=6`; seven config keys seeded; account ID, label, disabled state, client grant, and host identity retained |
+| Normal process restart | No new adoption; one account, one grant, and six history observations retained; marker unchanged |
+| Remove only the scratch marker, then restart | `added=0 refreshed=0 skipped=0 rows=0`, config `keys=0`; no duplicate account, grant, or history observation |
+| Synthetic credential change in the shared store | Credential fingerprint changed, client grant retained; no real OAuth request |
+| Rollback reader using Swift's shared/adopt arguments and parent-pipe protocol | Helper exit 0; accounts, clients, settings, snapshot, and history catalog returned HTTP 200; changed credential remained readable |
+| Original isolated source after all steps | Document fingerprint and history hash unchanged; the adoption marker was added as expected |
+
+The six history observations belong to the mock provider. The disabled Claude
+account had no quota metrics. This proves database import and catalog access,
+not live quota continuity for that provider. The preserved client read grant is
+not an iPhone pairing, companion identity, TLS, or physical-device test. The
+rollback reader was a source-built helper using Swift's protocol, not a launch
+of the complete Swift application or its installed historical helper.
+Merging into an already-populated shared vault was not exercised.
+
+The isolated source still contains the pre-cutover credential. After a real
+refresh rotates that credential, rollback must read the current shared vault,
+not restore or reopen the stale isolated source. Preserving source data alone
+does not make its old token usable again.
+
+There were zero recorded Keychain prompts and no SecurityAgent windows at the
+safety check. Default/search-list metadata matched the pre-test hash. The log
+query found no non-loopback connection attempt; this is not a packet capture.
+The synthetic preferences plist written outside scratch was removed, together
+with the disposable Keychain, HOME, source, and binaries. No probe process
+remained. GPUI notification authorization warnings were observed and do not
+count as notification acceptance. No real credential was used.
+
+Evidence: `native-14-adoption-rollback.txt`, `native-14-G1-after.txt.txt`,
+`native-14-G2-G3-restart.txt.txt`,
+`native-14-RB-rollback-reader.txt.txt`, and `native-14-Z-safety.txt.txt` under
+`.amp/in/artifacts/gpui-cutover/`. Scratch probe sources and the diff are retained
+there too. Sanitized paths and concatenated step arrays need reconstruction
+before replay; this is not a ready-to-run test bundle. Real provider refresh
+followed by Swift rollback was not tested and was subsequently waived by the
+owner on 2026-11-08.
+
+## Native acceptance and the OAuth waiver
 
 Run the following on a dedicated macOS test user, using synthetic credentials
 and a disposable test installation. Never change the real user's Keychain,
@@ -492,6 +554,8 @@ login items, proxy, sharing listener, or existing working tree for these probes.
    quit GPUI, then recover through the retained Swift bridge. Observe a fresh
    successful quota read, history continuity, and the expected pairing result.
    If re-login is necessary, record it as a product limitation before cutover.
+   The owner waived this OAuth test on 2026-11-08. Do not count it as passed
+   or block unrelated milestone work on obtaining a credential.
 
 The Linux orb cannot run Security.framework, codesign, Sparkle, or a native Mac
 app. The owner approved using the existing Quotio thread on `macbook`, without
@@ -511,7 +575,8 @@ migration and end-to-end embedded-host authorization remain outstanding.
 No dedicated OAuth test credential was identified in the limited inspection.
 This is not evidence that none exists. Real provider refresh, rollback through
 Swift, and subsequent quota, history, and pairing remain untested. Never use the
-owner's active provider login as a substitute.
+owner's active provider login as a substitute. The owner has accepted proceeding
+without the real OAuth test, not waived other migration and distribution checks.
 
 The authorized test submission passed notarization and Gatekeeper policy
 assessment, including after extracting its retained ZIP and adding quarantine.
@@ -529,3 +594,219 @@ previous documentation commit. It changes only `apps/desktop/src/host.rs`,
 `Cargo.toml`, and `Cargo.lock`. The macmini retest above exercised that patch;
 the older baseline prompt and full-suite checks do not validate it. No permanent
 test, release dispatch, public-feed change, or Swift deletion was added.
+
+## Milestone 1: populated destinations and preferences
+
+The extended native phase 15 used actual GPUI `EmbeddedHost` from `67a8aede`
+with the same fail-closed disposable-Keychain hook. Both source and destination
+had accounts, history, and read-client grants. No real credential or provider
+request was used.
+
+For matching provider and account identity, the destination kept its label and
+enabled state. An enabled source did not re-enable its disabled counterpart.
+Only a newer source credential replaced the destination credential. A newly
+added account with a duplicate label received suffix ` 2` and was not made
+active over the existing account.
+
+Making source history unreadable caused history adoption to fail after account
+commit. No completion marker was written. After restoring only scratch-file
+permissions, the next launch imported six observations without duplicating
+accounts. Restart and removal of only the scratch marker were idempotent.
+The resulting history had six series and nine observations. Marker counts
+describe the final successful attempt, not all work across retries.
+
+When the destination already held a read grant, it retained its host ID and
+grants. The source phone token returned HTTP 401 after merge. The destination
+token read the merged snapshot with HTTP 200 but received 403 for client-list
+and settings writes. After owner revocation, that token returned 401 too.
+These were real client requests over loopback HTTP, not iPhone, TLS, or
+companion-identity tests. A source-paired phone must pair again in this case.
+The backend currently logs `vault_adoption_pairing_dropped`; user-facing
+migration disclosure remains required before cutover.
+
+Phase 15 also reproduced a valid source and destination with different account
+identities but the same storage and logical ID. Adoption failed with `Corrupt`,
+made no writes, and left no marker. A Linux probe confirmed the cause:
+`Document::absorb` remapped the storage ID, but `Registry::absorb` reused its
+logical ID. Registry validation then rejected the unverified shared group.
+The local fix allocates a fresh logical ID on collision unless authenticated
+provider evidence permits a join. The same failing probe passes after the fix.
+A matrix of 24 synthetic public-API cases checks independent storage and logical
+collisions, absent/equal/different verified identities, same/different providers,
+history rewrite IDs, and byte-identical retry state. All cases passed on Linux.
+The actual native GPUI retest also passed: `added=1 refreshed=1 rows=12`.
+The destination account retained its ID, label, and credential fingerprint.
+The colliding source account received distinct storage and logical IDs. Its two
+synthetic history observations moved to its new logical ID; the destination's
+observation stayed under the original ID. Final history contained eight series
+and twelve observations. Restart and lost-marker retry retained account and
+credential fingerprints and the history checksum, with no duplicate data.
+The source document and history checksums stayed unchanged. The native
+destination document fingerprint varied across launches; do not describe it as
+byte-identical. The rollback-protocol reader exposed both accounts separately.
+
+The local desktop change imports supported Swift UserDefaults on macOS only
+when `desktop.json` is missing and persistence is enabled. It reads only the
+current bundle's persistent domain and requires a recognized Swift key.
+AppKit creates its own domain key before preferences load, so domain existence
+alone misidentified clean installs in v2. The v3 guard passed clean-install,
+AppKit-only-domain, and appearance-only-domain tests in actual GPUI.
+Existing files, including malformed JSON, are not replaced by import.
+Fixture mode does not import or write. Theme,
+masking, quota display and aggregation, tray settings, notification choices,
+and automatic-update preference have direct mappings. It does not auto-enable
+proxy, sharing, or autostart. Pinned-account references, language, and proxy
+configuration are not migrated by this change. Fractional thresholds truncate
+to the target's integer representation; hand-edited string values are ignored
+rather than coerced as Swift would do.
+
+Native C1-C8 tests, two extra domain controls, and boundary cases passed on v3.
+Restart preserved the imported file despite changed Swift preferences. Source
+Swift keys were unchanged; AppKit added only its own autofill key. Actual GPUI
+renders were captured and inspected for dark/masked/used and light/unmasked/
+remaining states, in both menu and Accounts settings. Captures contain synthetic
+addresses only. The tray icon itself could not be captured; its preference was
+checked in JSON, not visually. The fixture captures did not change preferences.
+
+Linux and native desktop fmt, clippy all-targets with `-D warnings`, and two
+desktop tests passed. Four existing Linux resolved-account tests and 210 native
+account tests passed, with one native test ignored. Linux CLI all-features
+`--no-fail-fast` ran every target: 634 passed, one failed, one ignored. The
+failure `empty_and_invalid_config_exit_codes_and_redaction` returned 0 instead
+of 3 and reproduced with the exact test on a clean detached `67a8aede` baseline.
+This is not an all-green full suite. No permanent test was added.
+
+Evidence: `native-16-phase15-paired-merge.txt` under
+`.amp/in/artifacts/gpui-cutover/`; native fix results are in
+`native-18-logical-id-collision-fix.txt` and
+`native-18-logical-id-M1b-fixed.log.txt`. Final preferences results, safety,
+and screenshots use the prefix `native-19-`. Linux logs and the synthetic
+public-API reproducer are under `.amp/in/artifacts/milestone-1/`.
+The verified patch SHA256 values are
+`3f5e0e9998a2ef492c6d24bfa8c9b2d093c36931ec48df028e41b69b95868ca8`
+for preferences v3 and
+`67230965c6ed788772c552866a781284687189ee197e3b81f7ee91531eb0b0b9`
+for the logical-ID fix.
+
+Milestone 1 is not yet accepted. Pinned references, proxy migration, legacy
+bridge coverage, user-facing source and pairing disclosures, and actual
+iPhone/TLS/companion acceptance remain. Milestone 2 production packaging and
+Sparkle integration have not been implemented by these changes.
+All changes in this section remain local, uncommitted and unpushed. No Swift
+deletion, public release, or feed change.
+
+## Milestones 1 and 2: source choice and local packages
+
+The next increment requires an explicit, persisted exact-bundle choice before
+reading the isolated Swift vault. A qualifying Developer ID build still uses
+the shared CLI vault. The Privacy page offers shared-only or isolated merge,
+describes destination label/enabled-state precedence, retained source data,
+and re-pairing when the destination already has device grants. Legacy
+Monitor/PIV accounts require the retained signed Swift bridge or a new login.
+This is a disclosed manual path, not newly implemented GPUI Monitor/PIV support.
+If saving the choice fails, the in-memory choice is restored too.
+
+Receipt schema 2 records source/target host IDs and unambiguous account-ID
+mappings without credentials. Swift NSData pins restore only against the
+chosen host and matching provider, preserving order and removing duplicates.
+Remote, missing, ambiguous, and v1-receipt references are warned about rather
+than guessed onto colliding IDs. Manual pin selection cancels pending import.
+Native C1-C7 passed no-choice/no-source-read, shared-only, bundle mismatch,
+merge, ID collision, retry, lost receipt, failed history, v1 receipt, V2 NSData,
+and legacy alias cases. A save-failure UI check showed both choice buttons
+still available and no disk choice; retry saved successfully.
+
+That check found a real macOS restart bug: GPUI calls `terminate:` inside
+`run()`, so the post-run executable spawn never executes. The final source
+uses GPUI's `cx.restart()` after saving instead. The mechanism was checked in
+the dependency source. Runtime acceptance of the new restart path is pending;
+LaunchServices drops the synthetic test environment, so the original test
+cannot safely be repeated without an adapted fail-closed setup.
+
+Proxy import is explicit and requires a stopped proxy with auto-start off.
+It copies only port, auth-directory reference, and client API keys from bounded
+v7/v8 YAML into a new private v8 file. It forces loopback and remote management
+off, imports no management credential, binary, routing, or provider overrides,
+and refuses existing files and symlinks. Linux probes of the actual extracted
+functions passed valid/invalid YAML, escaping, size limits, private mode, and
+no-overwrite cases. A native no-GUI probe of the same function also passed
+v7/v8, private mode, existing files, live/dangling symlinks, and invalid inputs.
+The temporary probe was removed. The actual Privacy-button route and its
+running/auto-start refusals have not been exercised on macOS.
+
+### Packaging implementation and executed checks
+
+[`PACKAGING.md`](../../apps/desktop/PACKAGING.md) documents the local-only
+Python packager. It creates macOS universal ZIP/DMG, Linux tar.gz, and Windows
+portable ZIP packages with a desktop-owned icon, license, notes, and checksums.
+The Linux/Windows release workflow now creates archives alongside existing raw
+updater assets. Manual dispatch still publishes a prerelease and was not used.
+No macOS production release workflow or feed was switched.
+
+macOS uses runtime-loaded Sparkle 2.8.1 for whole-bundle updates. The About
+page routes manual checks and automatic-check preferences to Sparkle. Normal
+Cargo builds need no framework. The packager requires an explicit verified
+framework, checks both architectures in all nested Mach-O files, signs nested
+components before the app, and optionally notarizes/staples the app and DMG.
+It uses one `lipo -verify_arch` call per architecture because the local Xcode
+tool rejected a combined invocation. A validly signed thin Sparkle helper was
+correctly rejected. Native compilation also caught and corrected objc2 retained
+return/allocated receiver typing; Linux compilation cannot check this module.
+
+A native preview built both release slices with macOS 14.0 deployment targets.
+Sparkle's SPM archive checksum matched its pinned 2.8.1 revision. All five
+nested Mach-O components were universal. Apple accepted app ZIP submission
+`eb4af25d-f579-474f-96f3-e90d7ce2e6ce` and DMG submission
+`e53db8d4-8bb5-40df-8ec3-d1b46158fc75`. Stapling, strict signatures, and
+Gatekeeper checks passed. A quarantined DMG mount/copy and extracted ZIP app
+also passed CLI policy checks. There was no Finder copy or GUI first launch.
+Both slices ran `--help`; x86_64 ran under Rosetta, not on Intel hardware.
+macOS 14 support is a deployment target, not a runtime result on macOS 14.
+The notarized preview predates the final `cx.restart()` change. It does not
+certify the exact final source or a completed Sparkle A-to-B update.
+
+The Linux release packager completed. Final archive validation checked hashes,
+safe paths, executable permissions, byte-identical extraction, and `--help`
+exit 0. `ldd` found all linked libraries in this orb. That is not a clean Linux
+desktop install/runtime test. Windows ZIP composition passed with a synthetic
+header only; no Windows runner was available. No claim of a Windows build or
+runtime pass is made for these local changes. The portable Windows package has
+no Authenticode signature and may show SmartScreen warnings.
+
+Linux desktop fmt, clippy all-targets `-D warnings`, and both existing tests
+passed on the final source. Final native desktop fmt, clippy, and both tests
+also passed. Native CLI fmt/clippy passed, and the all-features full suite
+exited 0 with 641 passed and 2 ignored across its suites. The native Keychain
+smoke test was ignored, not run. Both final release slices rebuilt and packaged
+successfully with strict bundle/DMG signatures. This exact final package was
+not resubmitted to Apple; Gatekeeper rejected it as Unnotarized Developer ID,
+as expected. Retained native packages distinguish `22-notarized` from
+`23-final-unnotarized`.
+
+The Linux full CLI suite ran every target but was not all-green: its existing
+config exit-code failure reproduced on clean
+`origin/HEAD` at `67a8aede`; a staging-conflict test also failed on that clean
+baseline after passing once. Those failures were not hidden or fixed in this
+increment. No permanent tests were added.
+
+### Remaining acceptance and delivery
+
+The owner stopped screenshots on the in-use MacBook. Further GUI work is
+paused to avoid disrupting that machine. Pending checks include the final
+restart, completed/retry migration states, proxy-button refusals, About controls, automatic-update
+toggles, whole-bundle Sparkle A-to-B/relaunch, beta acceptance, bad-signature
+rejection, and a quarantined Finder first launch. No finalized pointer clip
+exists. Earlier Sparkle experiments do not prove this exact integration.
+Actual iPhone/TLS/companion acceptance, legacy bridge coverage, and clean
+Linux/Windows runtime checks also remain. OAuth remains waived, not passed.
+Keep Swift until these acceptance and rollback gates are addressed.
+
+Evidence is under `.amp/in/artifacts/gpui-cutover/native-21-*`, `native-22-*`, `native-23-*`,
+`.amp/in/artifacts/milestone-1/choice-*`, and
+`.amp/in/artifacts/milestone-2/`. The native summaries distinguish actual GPUI
+checks from stand-ins and static package checks. Native scratch homes,
+Keychains, test sources, builds, and private test key were cleaned; packages
+and evidence were retained. Recorded real-Keychain state hash remained
+unchanged with zero prompts. All new source and docs remain
+local, uncommitted and unpushed on `master` based on `67a8aede`. No public
+release, update-feed change, Swift deletion, or real credential test occurred.

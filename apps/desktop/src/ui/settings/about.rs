@@ -25,7 +25,7 @@ const SPONSORS: &str = "https://www.quotio.dev/sponsors";
 impl SettingsWindow {
     pub(super) fn about_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = palette(cx).clone();
-        let version = env!("CARGO_PKG_VERSION");
+        let version = updater::version();
         let hero = div()
             .flex()
             .items_center()
@@ -108,7 +108,7 @@ impl SettingsWindow {
                     ),
             );
 
-        let (updates_help, updates) = if updater::ASSET.is_some() {
+        let (updates_help, updates) = if updater::supported(cx) {
             self.updates(&p, cx)
         } else {
             let releases = row(
@@ -125,7 +125,10 @@ impl SettingsWindow {
                 &p,
             );
             (
-                "Desktop builds don’t update themselves yet.".into(),
+                match updater::state(cx) {
+                    State::Failed(error) => error.clone().into(),
+                    _ => "This build has no configured automatic updater.".into(),
+                },
                 rows([releases], &p),
             )
         };
@@ -179,6 +182,7 @@ impl SettingsWindow {
                     format!("Last checked today at {}.", at.format("%H:%M")).into()
                 }
                 Some(at) => format!("Last checked {}.", at.format("%b %-d at %H:%M")).into(),
+                None if updater::uses_sparkle(cx) => "Sparkle shows update progress and errors in its own window and installs verified app bundles.".into(),
                 None => "Quotio installs signed builds from GitHub releases.".into(),
             },
         };
@@ -218,9 +222,7 @@ impl SettingsWindow {
             )
             .child(check_now)
             .child(toggle("auto-updates", auto, true, p, |on, _, cx| {
-                let on = *on;
-                prefs::update(cx, |prefs| prefs.manual_updates = !on);
-                cx.refresh_windows();
+                updater::automatic(*on, cx);
             }));
         let content = div()
             .flex()

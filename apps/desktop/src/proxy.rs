@@ -127,6 +127,97 @@ pub fn config_path() -> PathBuf {
     dir().join("config.yaml")
 }
 
+/// Import only the compatible connection settings, never a binary, management
+/// secret, network listener, or automatic-start preference. Existing config wins.
+pub fn import_swift_config(source: &Path, destination: &Path) -> Result<u16> {
+    use std::io::{Read as _, Write as _};
+    const LIMIT: u64 = 1024 * 1024;
+    let mut bytes = Vec::new();
+    std::fs::File::open(source)?
+        .take(LIMIT + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > LIMIT {
+        bail!("Swift proxy configuration is too large");
+    }
+    let options = serde_saphyr::options! {
+        budget: serde_saphyr::budget! {
+            max_depth: 64, max_nodes: 32_768, max_events: 32_768,
+            max_total_scalar_bytes: 2 * LIMIT as usize,
+            max_aliases: 128, max_anchors: 128, max_documents: 1,
+        },
+        alias_limits: serde_saphyr::alias_limits! {
+            max_total_replayed_events: 32_768, max_replay_stack_depth: 16,
+        },
+    };
+    let root: serde_json::Value = serde_saphyr::from_slice_with_options(&bytes, options)
+        .map_err(|_| anyhow!("Swift proxy configuration is invalid"))?;
+    let (server, oauth, access) = match root.get("config-version") {
+        None => (&root, &root, &root),
+        Some(version) if version.as_u64() == Some(8) => {
+            (&root["server"], &root["oauth"], &root["access"])
+        }
+        _ => bail!("Unsupported Swift proxy configuration version"),
+    };
+    let port = server["port"]
+        .as_u64()
+        .and_then(|port| u16::try_from(port).ok())
+        .filter(|port| *port != 0)
+        .context("Swift proxy port is invalid")?;
+    let auth = oauth["auth-dir"]
+        .as_str()
+        .filter(|path| Path::new(path).is_absolute() || path.starts_with("~/"))
+        .context("Swift proxy auth directory must be absolute or home-relative")?;
+    let keys = access["api-keys"]
+        .as_array()
+        .context("Swift proxy client API keys are missing")?;
+    if keys.is_empty() || keys.len() > 512 {
+        bail!("Swift proxy client API keys are invalid");
+    }
+    let mut content = format!(
+        "config-version: 8\nserver:\n  host: \"127.0.0.1\"\n  port: {port}\nmanagement:\n  allow-remote: false\n  secret-key: \"\"\naccess:\n  api-keys:\n"
+    );
+    for key in keys {
+        let key = key
+            .as_str()
+            .filter(|key| !key.is_empty() && key.len() <= 8192)
+            .context("Swift proxy client API key is invalid")?;
+        content.push_str(&format!("    - {}\n", serde_json::to_string(key)?));
+    }
+    content.push_str(&format!(
+        "oauth:\n  auth-dir: {}\n",
+        serde_json::to_string(auth)?
+    ));
+    let dir = destination
+        .parent()
+        .context("Proxy configuration has no parent directory")?;
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder.create(dir)?;
+    let temporary = dir.join(format!(
+        ".config-import-{}-{}",
+        std::process::id(),
+        random_hex()
+    ));
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let mut file = options.open(&temporary)?;
+    let result = (|| -> Result<()> {
+        file.write_all(content.as_bytes())?;
+        file.sync_all()?;
+        // An existing file or symlink is never replaced, including a racing writer.
+        std::fs::hard_link(&temporary, destination)?;
+        Ok(())
+    })();
+    drop(file);
+    std::fs::remove_file(&temporary)?;
+    result?;
+    Ok(port)
+}
+
 /// `live` is off for fixtures, which should neither start processes nor reach the network.
 pub fn init(runtime: tokio::runtime::Handle, live: bool, cx: &mut App) {
     let dir = dir();

@@ -24,6 +24,7 @@ rust-embed = { version = "8.7", features = ["include-exclude"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde-saphyr = { version = "=0.0.27", default-features = false, features = ["deserialize"] }
 time = { version = "=0.3.47", features = ["serde", "serde-well-known", "formatting"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
 
@@ -39,7 +40,7 @@ tray-icon = "0.26"
 block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-core-foundation", "NSApplication", "NSAttributedString", "NSButton", "NSColor", "NSControl", "NSEvent", "NSFont", "NSFontDescriptor", "NSGraphics", "NSImage", "NSResponder", "NSStatusBarButton", "NSStatusItem", "NSStringDrawing", "NSView", "NSWindow"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSAttributedString", "NSData", "NSDictionary", "NSEnumerator", "NSBundle", "NSGeometry", "NSString"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSAttributedString", "NSData", "NSDictionary", "NSEnumerator", "NSBundle", "NSGeometry", "NSSet", "NSString", "NSUserDefaults", "NSValue"] }
 security-framework = "3"
 
 [target.'cfg(windows)'.dependencies]

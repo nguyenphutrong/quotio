@@ -5829,6 +5829,7 @@ dependencies = [
  "security-framework",
  "semver",
  "serde",
+ "serde-saphyr 0.0.27",
  "serde_json",
  "time",
  "tokio",
