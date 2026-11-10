@@ -308,9 +308,14 @@ fn replace(binary: &[u8]) -> Result<()> {
         std::fs::set_permissions(&new, std::fs::Permissions::from_mode(0o755))?;
     }
     let _ = std::fs::remove_file(&old);
+    // Keep the launch path intact until the atomic replacement on Unix.
+    #[cfg(unix)]
+    std::fs::hard_link(&exe, &old)?;
     // Windows can rename a running executable but not overwrite it.
+    #[cfg(windows)]
     std::fs::rename(&exe, &old)?;
     if let Err(error) = std::fs::rename(&new, &exe) {
+        #[cfg(windows)]
         let _ = std::fs::rename(&old, &exe);
         return Err(error.into());
     }
