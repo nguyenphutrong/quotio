@@ -56,7 +56,8 @@ impl Identity {
             params.distinguished_name = DistinguishedName::new();
             params
                 .distinguished_name
-                .push(DnType::CommonName, "Quotio Companion");
+                .push(DnType::CommonName, "Quotio Companion Server");
+            params.use_authority_key_identifier_extension = true;
             params.not_before = OffsetDateTime::now_utc() - time::Duration::days(1);
             params.not_after = OffsetDateTime::now_utc() + time::Duration::days(90);
             params.key_usages = vec![KeyUsagePurpose::DigitalSignature];
