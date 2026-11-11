@@ -192,7 +192,9 @@ fn text_output_and_explicit_selection() {
 }
 #[test]
 fn empty_and_invalid_config_exit_codes_and_redaction() {
-    let empty = ConfigFile::new("enabled_providers = []");
+    let empty = ConfigFile::new(
+        "enabled_providers = []\ndisabled_providers = ['amp', 'codex', 'claude', 'copilot', 'factory']",
+    );
     let result = run(&["usage", "--format", "json"], &empty);
     assert_eq!(result.status.code(), Some(3));
     assert!(serde_json::from_slice::<serde_json::Value>(&result.stdout).is_ok());
