@@ -41,7 +41,7 @@ snapshot need the beta channel and must reject other `schema_version` values.
 
 Each `cli-v*` GitHub release also has `.tar.gz` archives for macOS (Apple Silicon
 and Intel) and Linux x64, with `SHA256SUMS`. Windows has no release build. To run
-from source, use Rust 1.88 or later and replace `quotio` with `cargo run --` in the
+from source, use Rust 1.89 or later and replace `quotio` with `cargo run --` in the
 examples below. See [release channels](docs/release-channels.md) for details.
 
 ## Local REST API
@@ -90,7 +90,7 @@ Quota comes from the existing provider APIs, never from proxy traffic counters.
 
 ## Run
 
-Use Rust stable with edition 2024 support. The package declares Rust 1.88 or newer;
+Use Rust stable with edition 2024 support. The package declares Rust 1.89 or newer;
 this revision was verified with Rust 1.92.0. `Cargo.lock` pins dependencies.
 
 ```sh

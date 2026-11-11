@@ -2,7 +2,7 @@
 name = "quotio"
 version = "1.0.0-beta.8"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.89"
 license = "MIT"
 
 [dependencies]
@@ -16,7 +16,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "sync"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.41", default-features = false, features = ["bundled", "cache", "fallible_uint"] }
 serde-saphyr = { version = "=0.0.27", default-features = false, features = ["deserialize"] }
 toml = "0.9"
 time = { version = "=0.3.47", features = ["serde", "serde-well-known", "formatting", "macros"] }

@@ -35,7 +35,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, ubuntu-24.04]
-        toolchain: [stable, '1.88.0']
+        toolchain: [stable, '1.89.0']
     env:
       CARGO_TERM_COLOR: never
       RUST_BACKTRACE: '1'
