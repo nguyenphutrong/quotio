@@ -371,7 +371,10 @@ mod unix {
         io::{Read, Write},
         os::{
             fd::{AsRawFd, FromRawFd},
-            unix::{ffi::OsStrExt, fs::MetadataExt},
+            unix::{
+                ffi::OsStrExt,
+                fs::{FileExt, MetadataExt},
+            },
         },
         path::Component,
     };
@@ -563,6 +566,14 @@ mod unix {
             sync(&existing)
                 .and_then(|_| sync(dir))
                 .map_err(|_| StagingError::CommitUncertain)?;
+            // Same-length writes can share timestamps on coarse-resolution filesystems.
+            let mut verified = vec![0; bytes.len()];
+            existing
+                .read_exact_at(&mut verified, 0)
+                .map_err(|_| StagingError::Conflict)?;
+            if verified != bytes {
+                return Err(StagingError::Conflict);
+            }
             stable()
         };
         match openat(dir, &name, libc::O_RDONLY) {

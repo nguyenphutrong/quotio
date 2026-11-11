@@ -420,7 +420,10 @@ fn destination_mutations_during_verification_are_detected() {
                 }
                 file.sync_all()
             });
-            assert!(matches!(result, Err(StagingError::Conflict)));
+            assert!(
+                matches!(result, Err(StagingError::Conflict)),
+                "{result:?}; preexisting={preexisting}, replace={replace}"
+            );
         }
     }
 }
