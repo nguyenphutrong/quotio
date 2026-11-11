@@ -250,6 +250,7 @@ public actor LocalProxyOAuthAuthorizer: OAuthAuthorizing {
         case .glm: "Z.ai"
         case .warp: "Warp"
         case .clinePass: "ClinePass"
+        case .muse: "Muse Code"
         }
     }
 }
@@ -262,6 +263,7 @@ private extension ProxyManagementOAuthProvider {
         case .qwen: self = .qwen
         case .iflow: self = .iflow
         case .antigravity: self = .antigravity
+        case .muse: self = .meta
         default: return nil
         }
     }

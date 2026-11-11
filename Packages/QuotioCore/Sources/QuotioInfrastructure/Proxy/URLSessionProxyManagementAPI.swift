@@ -145,6 +145,8 @@ public actor URLSessionProxyManagementAPI: ProxyManagementAPI {
         case .qwen: "/qwen-auth-url"
         case .iflow: "/iflow-auth-url?is_webui=true"
         case .antigravity: "/antigravity-auth-url?is_webui=true"
+        // Device-code flow: the returned URL already carries the user code.
+        case .meta: "/meta-auth-url"
         }
         return try await decode(ProxyOAuthStart.self, path: endpoint)
     }

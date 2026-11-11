@@ -3,6 +3,26 @@ import XCTest
 @testable import QuotioDomain
 
 final class QuotaModelsTests: XCTestCase {
+    func testMuseCodeUsesProxyProviderIDAndIsProxyOnly() {
+        // CLIProxyAPI reports the account as "meta"; the id must match without a mapping.
+        XCTAssertEqual(QuotaProvider(rawValue: "meta"), .muse)
+        XCTAssertEqual(
+            ManagedAuthFile(
+                id: "meta-account",
+                name: "meta-account.json",
+                provider: "meta",
+                status: "ready",
+                disabled: false,
+                unavailable: false
+            ).providerID,
+            .muse
+        )
+        XCTAssertTrue(QuotaProvider.muse.supportsManualAuth)
+        XCTAssertTrue(QuotaProvider.muse.supportsLocalProxySetup)
+        XCTAssertFalse(QuotaProvider.muse.supportsQuotaOnlyMode)
+        XCTAssertFalse(QuotaProvider.muse.usesAPIKeyAuth)
+    }
+
     func testLegacyQuotaMetricDecodesWithoutTypedPresentation() throws {
         let data = Data(
             #"{"name":"legacy","percentage":42,"resetTime":"","used":3,"limit":10}"#.utf8

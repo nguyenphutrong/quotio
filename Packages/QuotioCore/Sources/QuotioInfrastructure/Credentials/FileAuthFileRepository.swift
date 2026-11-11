@@ -183,6 +183,7 @@ public actor FileAuthFileRepository: AuthFileRepository {
             ("iflow-", "iflow"),
             ("kiro-", "kiro"),
             ("vertex-", "vertex"),
+            ("meta-", "meta"),
         ]
         guard let match = prefixes.first(where: { url.lastPathComponent.hasPrefix($0.0) }) else {
             return nil
@@ -374,6 +375,7 @@ public actor FileAuthFileRepository: AuthFileRepository {
             "vertex": "vertex",
             "cursor": "cursor",
             "trae": "trae",
+            "meta": "meta",
         ]
         return canonical[type.lowercased()].map(AccountProviderID.init(rawValue:))
     }

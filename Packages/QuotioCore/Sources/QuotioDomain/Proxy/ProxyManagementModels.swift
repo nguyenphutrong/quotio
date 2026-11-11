@@ -259,6 +259,7 @@ public enum ProxyManagementOAuthProvider: String, Sendable {
     case qwen
     case iflow
     case antigravity
+    case meta
 }
 
 public struct ProxyLatestVersion: Codable, Equatable, Sendable {

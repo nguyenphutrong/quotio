@@ -57,6 +57,7 @@ Quotio est une application macOS native pour gérer **CLIProxyAPI** - un serveur
 | Antigravity | OAuth |
 | Kiro | OAuth |
 | GitHub Copilot | OAuth |
+| Muse Code | OAuth |
 
 ### Suivi de Quota IDE (Surveillance uniquement)
 | IDE | Description |

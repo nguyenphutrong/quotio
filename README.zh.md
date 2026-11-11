@@ -57,6 +57,7 @@ Quotio 是一款原生 macOS 应用，用于管理 **CLIProxyAPI** ——为你�
 | Antigravity | OAuth |
 | Kiro | OAuth |
 | GitHub Copilot | OAuth |
+| Muse Code | OAuth |
 
 ### IDE 配额追踪（仅监控）
 | IDE | 说明 |

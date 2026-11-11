@@ -92,6 +92,20 @@ final class ProxyManagementAPITests: XCTestCase {
         XCTAssertEqual(ManagementURLProtocol.requests().count, 5)
     }
 
+    func testMetaOAuthStartUsesDeviceFlowEndpoint() async throws {
+        // Shape of CLIProxyAPI's `/meta-auth-url` reply: a device flow whose URL carries the user code.
+        ManagementURLProtocol.enqueue(body: #"{"status":"ok","url":"https://auth.meta.com/device?user_code=ABCD-EFGH","state":"meta-1","flow":"device","user_code":"ABCD-EFGH","expires_in":900}"#)
+
+        let start = try await makeClient().startOAuth(for: .meta)
+
+        XCTAssertEqual(start.status, "ok")
+        XCTAssertEqual(start.url, "https://auth.meta.com/device?user_code=ABCD-EFGH")
+        XCTAssertEqual(start.state, "meta-1")
+        let request = try XCTUnwrap(ManagementURLProtocol.requests().first)
+        XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8317/meta-auth-url")
+        XCTAssertEqual(request.httpMethod, "GET")
+    }
+
     private func makeClient() -> URLSessionProxyManagementAPI {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ManagementURLProtocol.self]

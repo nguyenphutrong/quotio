@@ -19,12 +19,14 @@ public enum QuotaProvider: String, CaseIterable, Codable, Identifiable, Sendable
     case glm
     case warp
     case clinePass = "clinepass"
+    /// Muse Code. CLIProxyAPI files the account under Meta's own provider id.
+    case muse = "meta"
 
     public var id: String { rawValue }
 
     public var supportsQuotaOnlyMode: Bool {
         switch self {
-        case .qwen, .iflow, .vertex:
+        case .qwen, .iflow, .vertex, .muse:
             false
         default:
             true

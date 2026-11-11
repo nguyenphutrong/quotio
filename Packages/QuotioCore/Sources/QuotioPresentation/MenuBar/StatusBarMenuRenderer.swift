@@ -2295,6 +2295,7 @@ private extension QuotaProvider {
         case .glm: return "Z.ai"
         case .warp: return "Warp"
         case .clinePass: return "ClinePass"
+        case .muse: return "Muse"
         }
     }
 }

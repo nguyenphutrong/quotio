@@ -104,6 +104,23 @@ final class AccountPersistenceTests: XCTestCase {
         XCTAssertEqual(file.legacyIdentityKeys, ["legacy"])
     }
 
+    func testMetaAuthFileScanReportsMuseCodeAccount() async throws {
+        let repository = FileAuthFileRepository(authDirectory: temporaryDirectory)
+        let content = Data(
+            #"{"type":"meta","auth_kind":"oauth","email":"dev@example.com","access_token":"LLM|secret","dca_token":"dca:secret"}"#.utf8
+        )
+        try content.write(
+            to: temporaryDirectory.appendingPathComponent("meta-dev_example.com-0123456789abcdef.json")
+        )
+
+        let scanned = await repository.scanAllAuthFiles()
+        let file = try XCTUnwrap(scanned.first)
+
+        XCTAssertEqual(scanned.count, 1)
+        XCTAssertEqual(file.providerID.rawValue, QuotaProvider.muse.rawValue)
+        XCTAssertEqual(file.email, "dev@example.com")
+    }
+
     func testKiroCredentialAcceptsNumericCamelCaseExpiryAndDeviceRegistration() async throws {
         let awsDirectory = temporaryDirectory.appendingPathComponent("aws", isDirectory: true)
         try FileManager.default.createDirectory(at: awsDirectory, withIntermediateDirectories: true)
