@@ -3,6 +3,7 @@
 //  Quotio - Custom AI provider add/edit modal
 //
 
+import AppKit
 import QuotioApplication
 import QuotioDomain
 import SwiftUI
@@ -68,7 +69,26 @@ struct CustomProviderSheet: View {
     private var isEditing: Bool {
         provider != nil
     }
-    
+
+    /// A menu-style `Picker` hands its rows to AppKit, which draws an item image at the
+    /// `NSImage`'s own size. A `resizable()` image has no size of its own there, so it is
+    /// stretched across the popup button and squeezes the title out. Size the image itself.
+    static func menuIcon(named name: String, side: CGFloat = 16) -> Image {
+        guard let source = NSImage(named: name) else { return Image(name) }
+        return Image(nsImage: menuIcon(from: source, side: side))
+    }
+
+    /// Returns a copy of `source` whose longest side is `side` points, keeping its aspect
+    /// ratio, vector representation and template flag.
+    static func menuIcon(from source: NSImage, side: CGFloat) -> NSImage {
+        guard let icon = source.copy() as? NSImage else { return source }
+        let longestSide = max(source.size.width, source.size.height)
+        guard longestSide > 0 else { return icon }
+        let scale = side / longestSide
+        icon.size = NSSize(width: source.size.width * scale, height: source.size.height * scale)
+        return icon
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             headerView
@@ -190,10 +210,7 @@ struct CustomProviderSheet: View {
                 Picker("Type", selection: $providerType) {
                     ForEach(Self.selectableProviderTypes) { type in
                         HStack {
-                            Image(type.menuBarIconName)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 16, height: 16)
+                            Self.menuIcon(named: type.menuBarIconName)
                             Text(type.localizedDisplayName)
                         }
                         .tag(type)
