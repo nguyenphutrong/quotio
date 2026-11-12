@@ -85,6 +85,18 @@ public actor LocalProxyOAuthAuthorizer: OAuthAuthorizing {
         await authenticator.terminate()
     }
 
+    /// Number of 2-second status polls before the attempt is reported as expired.
+    ///
+    /// Browser-redirect flows keep the two-minute wait. A device-code flow reports how long
+    /// the proxy itself waits for the approval (`expires_in`), so the sheet waits as long as
+    /// the proxy does, bounded by the 15 minutes the proxy allows a device flow at most.
+    static func statusPollCount(expiresIn: Int?) -> Int {
+        let defaultWait = 120
+        let longestWait = 900
+        let wait = min(max(expiresIn ?? defaultWait, defaultWait), longestWait)
+        return wait / 2
+    }
+
     private func runManagementFlow(
         provider: QuotaProvider,
         automaticallyOpensBrowser: Bool,
@@ -113,9 +125,9 @@ public actor LocalProxyOAuthAuthorizer: OAuthAuthorizing {
             if automaticallyOpensBrowser {
                 guard await urlOpener.open(url) else { throw OAuthFlowFailure.browserOpenFailed }
             }
-            await progress(OAuthPrompt(authorizationURL: url))
+            await progress(OAuthPrompt(authorizationURL: url, userCode: response.userCode))
 
-            for _ in 0..<60 {
+            for _ in 0..<Self.statusPollCount(expiresIn: response.expiresIn) {
                 try Task.checkCancellation()
                 try ensureActive(attemptID)
                 try await Task.sleep(for: .seconds(2))

@@ -246,6 +246,16 @@ public struct ProxyOAuthStart: Codable, Equatable, Sendable {
     public let url: String?
     public let state: String?
     public let error: String?
+    /// Device-code flows only: the code the user confirms or types in the browser.
+    public let userCode: String?
+    /// Device-code flows only: how many seconds the proxy keeps waiting for the approval.
+    public let expiresIn: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case status, url, state, error
+        case userCode = "user_code"
+        case expiresIn = "expires_in"
+    }
 }
 
 public struct ProxyOAuthStatus: Codable, Equatable, Sendable {
