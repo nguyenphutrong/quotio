@@ -33,7 +33,7 @@ Quotio 是一款原生 macOS 应用，用于管理 **CLIProxyAPI** ——为你�
 
 ## ✨ 功能特性
 
-- **🔌 多提供商支持**：通过 OAuth 或 API Key 连接 Claude、OpenAI Codex、Qwen、Vertex AI、iFlow、Antigravity、Kiro、Trae 和 GitHub Copilot 账号。
+- **🔌 多提供商支持**：通过 OAuth 或 API Key 连接 Claude、OpenAI Codex、Qwen、Vertex AI、iFlow、Antigravity、Kiro、Trae、GitHub Copilot 和 Muse Code 账号。
 - **📊 独立配额模式**：无需运行代理服务器即可查看配额和账号，适合快速检查。
 - **🚀 一键 Agent 配置**：自动检测并配置 Claude Code、OpenCode 等 AI 编程工具。
 - **📈 实时仪表盘**：实时监控请求流量、token 使用量和成功率。
@@ -57,6 +57,7 @@ Quotio 是一款原生 macOS 应用，用于管理 **CLIProxyAPI** ——为你�
 | Antigravity | OAuth |
 | Kiro | OAuth |
 | GitHub Copilot | OAuth |
+| Muse Code | OAuth |
 
 ### IDE 配额追踪（仅监控）
 | IDE | 说明 |

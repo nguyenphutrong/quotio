@@ -1154,24 +1154,7 @@ private struct OAuthStatusView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                             
-                            HStack(spacing: 12) {
-                                Text(deviceCode)
-                                    .font(.system(size: 24, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(provider.color)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(provider.color.opacity(0.1))
-                                    .cornerRadius(8)
-                                
-                                Button {
-                                    pasteboard.copy(deviceCode)
-                                } label: {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.title3)
-                                }
-                                .buttonStyle(.subtle)
-                                .help("action.copyCode".localized())
-                            }
+                            deviceCodeRow(deviceCode)
                             
                             Text("oauth.waitingForAuth".localized())
                                 .font(.caption)
@@ -1187,6 +1170,18 @@ private struct OAuthStatusView: View {
                         Text("oauth.waitingForAuth".localized())
                             .font(.subheadline)
                             .fontWeight(.medium)
+                        
+                        // Muse Code is a device-code login whose link already carries the code;
+                        // show the code too, so it can be checked or typed on Meta's page.
+                        if provider == .muse, let deviceCode = state, !deviceCode.isEmpty {
+                            VStack(spacing: 8) {
+                                Text("oauth.enterCodeInBrowser".localized())
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                
+                                deviceCodeRow(deviceCode)
+                            }
+                        }
                         
                         // Show auth URL with copy/open buttons
                         if let urlString = authURL, let url = URL(string: urlString) {
@@ -1263,6 +1258,27 @@ private struct OAuthStatusView: View {
             }
         }
         .frame(minHeight: 100)
+    }
+    
+    private func deviceCodeRow(_ deviceCode: String) -> some View {
+        HStack(spacing: 12) {
+            Text(deviceCode)
+                .font(.system(size: 24, weight: .bold, design: .monospaced))
+                .foregroundStyle(provider.color)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(provider.color.opacity(0.1))
+                .cornerRadius(8)
+            
+            Button {
+                pasteboard.copy(deviceCode)
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.title3)
+            }
+            .buttonStyle(.subtle)
+            .help("action.copyCode".localized())
+        }
     }
 }
 
