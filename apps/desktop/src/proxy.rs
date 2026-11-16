@@ -307,7 +307,7 @@ pub fn init(runtime: tokio::runtime::Handle, live: bool, cx: &mut App) {
     })
     .detach();
     let prefs = crate::prefs::get(cx).proxy.clone();
-    if live && prefs.version.is_some() {
+    if !cfg!(feature = "preview") && live && prefs.version.is_some() {
         if prefs.auto_start {
             start(cx);
         }

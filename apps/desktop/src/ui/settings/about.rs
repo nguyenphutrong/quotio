@@ -108,7 +108,17 @@ impl SettingsWindow {
                     ),
             );
 
-        let (updates_help, updates) = if updater::supported(cx) {
+        let (updates_help, updates) = if cfg!(feature = "preview") {
+            (
+                "This Preview uses manual updates only.".into(),
+                rows([row(
+                    "Install a newer Preview",
+                    Some("Quit Quotio, keep your data, then replace the app with a verified Preview package. Keep the previous package for recovery.".into()),
+                    div().text_size(px(13.)).text_color(p.text_sub).child("Manual"),
+                    &p,
+                )], &p),
+            )
+        } else if updater::supported(cx) {
             self.updates(&p, cx)
         } else {
             let releases = row(
@@ -143,13 +153,15 @@ impl SettingsWindow {
                 REPOSITORY,
                 &p,
             ))
-            .child(link_card(
-                "CLIProxyAPI",
-                "The local proxy",
-                IconName::Github,
-                PROXY,
-                &p,
-            ))
+            .when(!cfg!(feature = "preview"), |s| {
+                s.child(link_card(
+                    "CLIProxyAPI",
+                    "The local proxy",
+                    IconName::Github,
+                    PROXY,
+                    &p,
+                ))
+            })
             .child(link_card(
                 "Support Quotio",
                 "Sponsor development",

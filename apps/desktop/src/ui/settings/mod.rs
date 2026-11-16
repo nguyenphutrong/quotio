@@ -184,7 +184,7 @@ impl SettingsWindow {
             host_settings: None,
             settings_write: None,
             discovery: None,
-            launch_at_login: crate::autostart::enabled(),
+            launch_at_login: !cfg!(feature = "preview") && crate::autostart::enabled(),
             scanning: false,
             revealed: None,
             sharing: None,
@@ -202,6 +202,13 @@ impl SettingsWindow {
     }
 
     pub fn show(&mut self, page: Page, cx: &mut Context<Self>) {
+        let page = if cfg!(feature = "preview")
+            && matches!(page, Page::IphoneSharing | Page::CliProxyApi)
+        {
+            Page::Accounts
+        } else {
+            page
+        };
         if self.page != page {
             self.page = page;
             // Pick up changes made in the config file or another client.
@@ -365,8 +372,13 @@ impl SettingsWindow {
                     .flex_col()
                     .gap(px(4.))
                     .child(nav(Page::Accounts, Some(attention), cx))
-                    .child(nav(Page::IphoneSharing, None, cx))
-                    .child(nav(Page::CliProxyApi, None, cx)),
+                    .when(!cfg!(feature = "preview"), |s| {
+                        s.child(nav(Page::IphoneSharing, None, cx)).child(nav(
+                            Page::CliProxyApi,
+                            None,
+                            cx,
+                        ))
+                    }),
             )
             .child(
                 div()

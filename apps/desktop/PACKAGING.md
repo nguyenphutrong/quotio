@@ -4,6 +4,55 @@ Run these commands from the repository root. Use Python 3.11 or newer and the
 Rust stable toolchain. The packager creates a new output directory and never
 publishes a release, uploads a feed, or changes a tag.
 
+## Prepare the core Preview candidate
+
+Use `--preview` to build with the `preview` Cargo feature. This candidate exposes
+accounts, quota, refresh, history, and local preferences in English. It hides
+proxy, iPhone sharing, launch-at-login, and self-update controls. Saved proxy or
+sharing preferences do not start those services. It does not import Swift
+preferences or pins. Existing GPUI preferences are retained; this is not a data
+reset or an isolated vault.
+
+The acceptance targets are Apple Silicon on macOS 15 or newer, Ubuntu 24.04
+x86_64 on Wayland, and Windows 11 x86_64. Intel, macOS 14, Linux X11, other
+distributions, Windows ARM, and PIV migration are outside this Preview's scope.
+The universal Mac packager still includes an Intel slice and targets macOS 14
+at the binary level; that does not extend the supported Preview matrix.
+
+```sh
+python3 apps/desktop/scripts/package.py --preview \
+  --target x86_64-unknown-linux-gnu --output dist/preview-linux
+```
+
+On Windows, use `--target x86_64-pc-windows-msvc`. On a Mac, use:
+
+```sh
+python3 apps/desktop/scripts/package.py --preview \
+  --target universal-apple-darwin --output dist/preview-macos \
+  --build-number 1 --sign-identity 'Developer ID Application: YOUR IDENTITY'
+```
+
+Core Preview bundles contain no Sparkle framework, update feed, or update key.
+Do not supply those options. The default separate bundle ID and URL scheme are
+required; do not replace the installed Swift app. Developer ID Preview builds
+still use the shared account vault, as described below. `--binary` accepts only
+a matching executable whose `--version` reports `quotio-desktop 0.1.0 preview`
+(with the selected version). `--version` does not start the host or UI.
+
+Updates are manual: quit Quotio, retain the previous package and a backup of
+the data, and replace only the app with the verified newer Preview. Do not run
+two versions against the same store. Test the manual upgrade and recovery path
+with synthetic populated data before distribution; do not assume an older
+binary can read a newer database schema. Never delete the data directory to
+recover an app launch failure.
+
+Packaging is not acceptance or publishing. Before distributing, verify core
+flows, credential errors, accounts and populated-history persistence, and
+manual upgrade/recovery on each target above. macOS also needs authorized
+notarization and quarantine first-launch checks. Keep bridge89 available with
+migration instructions. Swift remains the default download until a separate
+cutover approval.
+
 ## Package Linux or Windows
 
 Build on the target OS. On Linux, install the development libraries listed in

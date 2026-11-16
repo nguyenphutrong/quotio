@@ -60,3 +60,7 @@ jobs:
         run: cargo +stable clippy --locked --all-targets -- -D warnings
       - name: Test
         run: cargo +stable test --locked
+      - name: Check core Preview
+        run: |
+          cargo +stable clippy --locked --all-targets --features preview -- -D warnings
+          cargo +stable test --locked --features preview

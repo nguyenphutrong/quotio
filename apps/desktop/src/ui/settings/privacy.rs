@@ -217,27 +217,31 @@ fn migration_section(p: &Palette, cx: &gpui_kit::App) -> Option<Div> {
             }
         },
     }
-    if prefs.migration.pending_pins.is_some() {
+    if !cfg!(feature = "preview") && prefs.migration.pending_pins.is_some() {
         content = content.child(text("Menu-bar pins are waiting for your source choice and its accounts. Selecting pins on Accounts overrides this import.".into()));
     }
-    if prefs.migration.pin_warning {
+    if !cfg!(feature = "preview") && prefs.migration.pin_warning {
         content = content.child(text("Some pins could not be matched safely (remote hosts, old receipts or missing accounts). Review pins on Accounts; they were not guessed from colliding IDs.".into()));
     }
-    content = content.child(text("Proxy import copies only the port, auth-directory reference and client API keys into a new local-only v8 config. Management credentials, binaries, routing and provider overrides are not copied. Auth files stay in their source directory; review custom settings before starting the proxy.".into()));
-    if std::fs::symlink_metadata(crate::proxy::config_path()).is_ok() {
-        content = content.child(text(
-            "A GPUI proxy configuration already exists and will not be overwritten.".into(),
-        ));
+    if cfg!(feature = "preview") {
+        content = content.child(text("This Preview does not import Swift preferences, pins or proxy settings. Configure preferences and pins again; the source data is kept.".into()));
     } else {
-        content = content.child(
-            button(
-                "migration-proxy",
-                "Import Swift proxy settings",
-                ButtonKind::Secondary,
-                p,
-            )
-            .on_click(|_, _, cx| crate::migration::import_proxy(cx)),
-        );
+        content = content.child(text("Proxy import copies only the port, auth-directory reference and client API keys into a new local-only v8 config. Management credentials, binaries, routing and provider overrides are not copied. Auth files stay in their source directory; review custom settings before starting the proxy.".into()));
+        if std::fs::symlink_metadata(crate::proxy::config_path()).is_ok() {
+            content = content.child(text(
+                "A GPUI proxy configuration already exists and will not be overwritten.".into(),
+            ));
+        } else {
+            content = content.child(
+                button(
+                    "migration-proxy",
+                    "Import Swift proxy settings",
+                    ButtonKind::Secondary,
+                    p,
+                )
+                .on_click(|_, _, cx| crate::migration::import_proxy(cx)),
+            );
+        }
     }
     if let Some(error) = &migration.error {
         content = content.child(

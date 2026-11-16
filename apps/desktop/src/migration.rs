@@ -104,6 +104,9 @@ pub fn import_proxy(cx: &mut App) {
 }
 
 pub fn restore_pins(snapshot: &Snapshot, cx: &mut App) {
+    if cfg!(feature = "preview") {
+        return;
+    }
     let Some(pins) = crate::prefs::get(cx).migration.pending_pins.as_ref() else {
         return;
     };

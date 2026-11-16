@@ -156,7 +156,8 @@ impl Store {
             .map_err(|error| eprintln!("Preferences will not be saved: {error:#}"))
             .ok();
         #[cfg(target_os = "macos")]
-        if persist
+        if !cfg!(feature = "preview")
+            && persist
             && path.as_ref().is_some_and(|path| {
                 std::fs::symlink_metadata(path)
                     .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)

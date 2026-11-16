@@ -126,7 +126,15 @@ impl SettingsWindow {
         .child(section(
             "Alerts",
             "Choose what Quotio tells you about.",
-            rows([quota_low, cooling, proxy_stopped, proxy_update], &p),
+            rows(
+                [quota_low, cooling].into_iter().chain(
+                    (!cfg!(feature = "preview"))
+                        .then_some([proxy_stopped, proxy_update])
+                        .into_iter()
+                        .flatten(),
+                ),
+                &p,
+            ),
             &p,
         ))
         .child(

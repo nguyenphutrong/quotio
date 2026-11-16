@@ -33,28 +33,32 @@ def macos(args, binary, output):
     minimums = re.findall(r"\bminos\s+(\S+)", build)
     if len(minimums) != 2 or any(version not in ("14.0", "14.0.0") for version in minimums):
         raise ValueError("Both binary slices must target macOS 14.0; rebuild with MACOSX_DEPLOYMENT_TARGET=14.0")
-    if not args.sparkle_framework or not args.feed_url or not args.public_key or not args.build_number:
-        raise ValueError("macOS requires --sparkle-framework, --feed-url, --public-key and --build-number")
-    if not re.fullmatch(r"[1-9][0-9]*", args.build_number):
+    if not args.build_number or not re.fullmatch(r"[1-9][0-9]*", args.build_number):
         raise ValueError("Build number must be a positive integer, greater than the last installed Swift build")
-    if len(base64.b64decode(args.public_key, validate=True)) != 32:
-        raise ValueError("Sparkle requires a 32-byte base64 Ed25519 public key")
-    feed = urlparse(args.feed_url)
-    local_feed = args.allow_local_feed and args.bundle_id.endswith(".preview") and feed.scheme == "http" and feed.hostname in ("localhost", "127.0.0.1", "::1")
-    if not (feed.scheme == "https" and feed.hostname and not feed.username and not feed.password) and not local_feed:
-        raise ValueError("Use an HTTPS feed, or explicitly allow a loopback test feed for a .preview bundle")
-    framework = args.sparkle_framework.resolve()
-    with (framework / "Resources/Info.plist").open("rb") as file:
-        if plistlib.load(file).get("CFBundleShortVersionString") != "2.8.1":
-            raise ValueError("Use the verified Sparkle 2.8.1 framework")
-    run("codesign", "--verify", "--deep", "--strict", framework)
+    local_feed = False
+    framework = None
+    if not args.preview:
+        if not args.sparkle_framework or not args.feed_url or not args.public_key:
+            raise ValueError("macOS requires --sparkle-framework, --feed-url and --public-key unless --preview is set")
+        if len(base64.b64decode(args.public_key, validate=True)) != 32:
+            raise ValueError("Sparkle requires a 32-byte base64 Ed25519 public key")
+        feed = urlparse(args.feed_url)
+        local_feed = args.allow_local_feed and args.bundle_id.endswith(".preview") and feed.scheme == "http" and feed.hostname in ("localhost", "127.0.0.1", "::1")
+        if not (feed.scheme == "https" and feed.hostname and not feed.username and not feed.password) and not local_feed:
+            raise ValueError("Use an HTTPS feed, or explicitly allow a loopback test feed for a .preview bundle")
+        framework = args.sparkle_framework.resolve()
+        with (framework / "Resources/Info.plist").open("rb") as file:
+            if plistlib.load(file).get("CFBundleShortVersionString") != "2.8.1":
+                raise ValueError("Use the verified Sparkle 2.8.1 framework")
+        run("codesign", "--verify", "--deep", "--strict", framework)
     bundle = output / f"{args.name}.app"
     contents = bundle / "Contents"
     (contents / "MacOS").mkdir(parents=True)
     resources = contents / "Resources"
     resources.mkdir()
     shutil.copy2(binary, contents / "MacOS/quotio-desktop")
-    shutil.copytree(framework, contents / "Frameworks/Sparkle.framework", symlinks=True)
+    if framework:
+        shutil.copytree(framework, contents / "Frameworks/Sparkle.framework", symlinks=True)
     info = {
         "CFBundleIdentifier": args.bundle_id, "CFBundleName": args.name,
         "CFBundleDisplayName": args.name, "CFBundleExecutable": "quotio-desktop",
@@ -62,12 +66,15 @@ def macos(args, binary, output):
         "CFBundleShortVersionString": args.version, "CFBundleVersion": args.build_number,
         "LSMinimumSystemVersion": "14.0", "LSUIElement": True,
         "NSHighResolutionCapable": True, "LSApplicationCategoryType": "public.app-category.developer-tools",
-        "NSLocalNetworkUsageDescription": "Share quota with devices you pair on your local network.",
         "CFBundleURLTypes": [{"CFBundleURLName": args.bundle_id, "CFBundleURLSchemes": [args.url_scheme]}],
-        "SUFeedURL": args.feed_url, "SUPublicEDKey": args.public_key,
-        "QuotioUpdateChannel": args.update_channel,
-        "SUEnableAutomaticChecks": False, "SUScheduledCheckInterval": 86400,
     }
+    if not args.preview:
+        info.update({
+            "NSLocalNetworkUsageDescription": "Share quota with devices you pair on your local network.",
+            "SUFeedURL": args.feed_url, "SUPublicEDKey": args.public_key,
+            "QuotioUpdateChannel": args.update_channel,
+            "SUEnableAutomaticChecks": False, "SUScheduledCheckInterval": 86400,
+        })
     if local_feed:
         info["NSAppTransportSecurity"] = {"NSAllowsLocalNetworking": True}
     with (contents / "Info.plist").open("wb") as file:
@@ -146,11 +153,17 @@ def portable(args, binary, output):
         shutil.copy2(ROOT / "LICENSE", package / "LICENSE")
         shutil.copy2(APP / "assets/app-icon.png", package / "app.quotio.Quotio.png")
         notes = "Quotio Desktop preview\n\nExtract to a user-writable folder. Run quotio-desktop" + (".exe" if windows else "") + ".\n"
-        notes += "No administrator access, service, proxy or sharing listener is installed.\nThe in-app updater verifies Ed25519 signatures; it needs write access beside the executable.\n"
+        notes += "No administrator access, service, proxy or sharing listener is installed.\n"
+        if args.preview:
+            notes += "Core Preview: English, manual updates only. Proxy, iPhone sharing and launch-at-login controls are unavailable. Swift preferences and pins are not imported; configure them again. PIV migration is not supported.\nQuit Quotio before replacing the app with a verified newer Preview package. Keep your data directory and the previous package for recovery. Never run two versions against the same store at once.\n"
+        else:
+            notes += "The in-app updater verifies Ed25519 signatures; it needs write access beside the executable.\n"
         if windows:
-            notes += "Windows x64. This portable build has no Authenticode signature; Windows may show SmartScreen warnings.\n"
+            notes += "Windows x64" + (", Windows 11 Preview target" if args.preview else "") + ". This portable build has no Authenticode signature; Windows may show SmartScreen warnings.\n"
         else:
             notes += "Linux x64, Ubuntu 24.04 or compatible glibc 2.39+. Requires Vulkan with a working GPU driver, X11/Wayland, fontconfig, FreeType and xkbcommon.\nOptionally install the binary in ~/.local/bin, the PNG in ~/.local/share/icons/hicolor/512x512/apps, and the desktop file in ~/.local/share/applications.\n"
+            if args.preview:
+                notes += "Preview acceptance target: Ubuntu 24.04 x86_64 Wayland only; X11 and other distributions are not supported in this Preview.\n"
             (package / "app.quotio.Quotio.desktop").write_text("[Desktop Entry]\nType=Application\nName=Quotio\nExec=quotio-desktop\nIcon=app.quotio.Quotio\nTerminal=false\nCategories=Utility;\nStartupWMClass=app.quotio.Quotio\n")
         (package / "README.txt").write_text(notes)
         if windows:
@@ -167,6 +180,7 @@ def main():
     parser.add_argument("--target", required=True, choices=["universal-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"])
     parser.add_argument("--output", type=Path, required=True, help="New output directory; never overwritten")
     parser.add_argument("--binary", type=Path, help="Use an already built binary instead of building")
+    parser.add_argument("--preview", action="store_true", help="Build the core Preview with manual updates and no proxy or sharing")
     parser.add_argument("--name", default="Quotio Desktop Preview")
     parser.add_argument("--bundle-id", default="app.bytrong.quotio.preview")
     parser.add_argument("--url-scheme", default="quotio-gpui-preview")
@@ -190,6 +204,10 @@ def main():
         parser.error("Notarization requires a signed macOS bundle")
     if args.bundle_id == "app.bytrong.quotio.beta" and args.update_channel != "beta":
         parser.error("The beta bundle requires --update-channel beta")
+    if args.preview and (args.sparkle_framework or args.feed_url or args.public_key or args.allow_local_feed):
+        parser.error("Core Preview uses manual updates; do not supply Sparkle or feed options")
+    if args.preview and (not args.bundle_id.endswith(".preview") or args.url_scheme in ("quotio", "quotio-beta")):
+        parser.error("Core Preview must use a .preview bundle ID and a separate URL scheme")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     target_dir = Path(os.environ.get("CARGO_TARGET_DIR", APP / "target")).resolve()
@@ -197,12 +215,16 @@ def main():
     if not binary:
         targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"] if args.target == "universal-apple-darwin" else [args.target]
         for target in targets:
-            run("cargo", "build", "--manifest-path", APP / "Cargo.toml", "--locked", "--release", "--target", target, env={**os.environ, "MACOSX_DEPLOYMENT_TARGET": "14.0", "CARGO_TARGET_DIR": str(target_dir)})
+            run("cargo", "build", "--manifest-path", APP / "Cargo.toml", "--locked", "--release", "--target", target, *(["--features", "preview"] if args.preview else []), env={**os.environ, "MACOSX_DEPLOYMENT_TARGET": "14.0", "CARGO_TARGET_DIR": str(target_dir)})
         if len(targets) == 2:
             binary = output / ".quotio-universal"
             run("lipo", "-create", *(target_dir / target / "release/quotio-desktop" for target in targets), "-output", binary)
         else:
             binary = target_dir / targets[0] / "release" / ("quotio-desktop.exe" if args.target.endswith("windows-msvc") else "quotio-desktop")
+    if args.preview:
+        version = subprocess.check_output([str(binary), "--version"], text=True).strip()
+        if version != f"quotio-desktop {args.version} preview":
+            raise ValueError("Core Preview requires a matching binary built with --features preview")
     if args.target == "universal-apple-darwin":
         macos(args, binary, output)
     else:

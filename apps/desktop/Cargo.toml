@@ -5,6 +5,9 @@ edition = "2024"
 license = "MIT"
 publish = false
 
+[features]
+preview = []
+
 [[bin]]
 name = "quotio-desktop"
 path = "src/main.rs"

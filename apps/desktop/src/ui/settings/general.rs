@@ -193,7 +193,14 @@ impl SettingsWindow {
                 "How Quotio starts and where it lives on {}.",
                 this_computer()
             ),
-            rows([launch].into_iter().chain(dock).chain([language]), &p),
+            rows(
+                (!cfg!(feature = "preview"))
+                    .then_some(launch)
+                    .into_iter()
+                    .chain(dock)
+                    .chain([language]),
+                &p,
+            ),
             &p,
         ))
         .child(section(

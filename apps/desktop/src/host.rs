@@ -203,7 +203,8 @@ fn serve_args(options: &HostOptions) -> Result<ServeArgs> {
         adopt_data_dir: swift.as_ref().map(|swift| swift.data_dir.clone()),
         adopt_vault_namespace: swift.map(|swift| swift.namespace),
         cli_proxy_auth_dir: None,
-        cli_proxy_config: (!options.demo).then(crate::proxy::config_path),
+        cli_proxy_config: (!cfg!(feature = "preview") && !options.demo)
+            .then(crate::proxy::config_path),
         manage: true,
         public_url: None,
         allow_origin: Vec::new(),

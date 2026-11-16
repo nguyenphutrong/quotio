@@ -74,7 +74,7 @@ pub fn checked(cx: &App) -> Option<chrono::DateTime<chrono::Local>> {
 }
 
 pub fn supported(cx: &App) -> bool {
-    ASSET.is_some() || uses_sparkle(cx)
+    !cfg!(feature = "preview") && (ASSET.is_some() || uses_sparkle(cx))
 }
 
 pub fn uses_sparkle(_cx: &App) -> bool {
@@ -93,6 +93,9 @@ pub fn version() -> String {
 }
 
 pub fn automatic(on: bool, cx: &mut App) {
+    if cfg!(feature = "preview") {
+        return;
+    }
     crate::prefs::update(cx, |prefs| prefs.manual_updates = !on);
     #[cfg(target_os = "macos")]
     if let Some(sparkle) = &cx.global::<Updates>().sparkle {
@@ -103,6 +106,7 @@ pub fn automatic(on: bool, cx: &mut App) {
 
 /// `check_now` is off for fixtures, which should not reach the network.
 pub fn init(runtime: tokio::runtime::Handle, check_now: bool, cx: &mut App) {
+    let check_now = check_now && !cfg!(feature = "preview");
     let http = reqwest::Client::builder()
         .user_agent(concat!("quotio-desktop/", env!("CARGO_PKG_VERSION")))
         .build()
@@ -127,7 +131,8 @@ pub fn init(runtime: tokio::runtime::Handle, check_now: bool, cx: &mut App) {
         sparkle: sparkle.and_then(Result::ok),
     });
     // Never replace or clean files inside a signed macOS bundle.
-    if ASSET.is_some()
+    if !cfg!(feature = "preview")
+        && ASSET.is_some()
         && let Ok(exe) = std::env::current_exe()
     {
         // ponytail: Windows keeps the previous executable locked until it exits, so
@@ -155,6 +160,9 @@ pub fn init(runtime: tokio::runtime::Handle, check_now: bool, cx: &mut App) {
 }
 
 pub fn check(cx: &mut App) {
+    if cfg!(feature = "preview") {
+        return;
+    }
     #[cfg(target_os = "macos")]
     if let Some(sparkle) = &cx.global::<Updates>().sparkle {
         sparkle.check();
@@ -192,6 +200,9 @@ pub fn check(cx: &mut App) {
 
 /// Download, verify and swap in the release, then quit so `main` starts it.
 pub fn install(release: Release, cx: &mut App) {
+    if cfg!(feature = "preview") {
+        return;
+    }
     let updates = cx.global_mut::<Updates>();
     updates.state = State::Installing;
     let task = updates

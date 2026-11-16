@@ -41,7 +41,8 @@ Usage: quotio-desktop [--demo | --fixture <snapshot.json>] [--show-menu] [--show
   --demo            Run the host with the deterministic mock provider only
   --fixture <path>  Render a saved /v2 snapshot without starting the host
   --show-menu       Open the quota popup at startup
-  --show-settings   Open the settings window at startup";
+  --show-settings   Open the settings window at startup
+  --version         Print the version and Preview build marker, then exit";
 
 #[derive(Default)]
 struct Options {
@@ -60,6 +61,18 @@ fn parse_args() -> Result<Options> {
             "--fixture" => options.fixture = Some(args.next().context(USAGE)?.into()),
             "--show-menu" => options.show_menu = true,
             "--show-settings" => options.show_settings = true,
+            "--version" => {
+                println!(
+                    "quotio-desktop {}{}",
+                    env!("CARGO_PKG_VERSION"),
+                    if cfg!(feature = "preview") {
+                        " preview"
+                    } else {
+                        ""
+                    }
+                );
+                std::process::exit(0);
+            }
             "-h" | "--help" => {
                 println!("{USAGE}");
                 std::process::exit(0);
@@ -132,7 +145,7 @@ fn main() -> Result<()> {
             options.fixture.is_none() && !options.demo,
             cx,
         );
-        if options.fixture.is_none() && !options.demo {
+        if !cfg!(feature = "preview") && options.fixture.is_none() && !options.demo {
             let host = store.read(cx).host();
             let saved = prefs::get(cx).sharing.clone();
             cx.background_spawn(sharing::restore(host, saved)).detach();

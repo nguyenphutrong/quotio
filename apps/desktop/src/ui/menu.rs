@@ -316,14 +316,19 @@ impl QuotaMenu {
             .pt(px(6.))
             .border_t_1()
             .border_color(p.stroke_soft)
-            .child(
-                item("pair-iphone", IconName::Smartphone, "Pair iPhone…", None).on_click(
-                    |_, window, cx| {
-                        window.remove_window();
-                        crate::app::open_settings_at(crate::ui::settings::Page::IphoneSharing, cx);
-                    },
-                ),
-            )
+            .when(!cfg!(feature = "preview"), |s| {
+                s.child(
+                    item("pair-iphone", IconName::Smartphone, "Pair iPhone…", None).on_click(
+                        |_, window, cx| {
+                            window.remove_window();
+                            crate::app::open_settings_at(
+                                crate::ui::settings::Page::IphoneSharing,
+                                cx,
+                            );
+                        },
+                    ),
+                )
+            })
             .child(
                 item(
                     "open-quotio",
