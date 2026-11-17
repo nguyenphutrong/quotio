@@ -107,6 +107,15 @@ public extension MenuBarColorMode {
     }
 }
 
+public extension MenuBarColorBasis {
+    var localizationKey: String {
+        switch self {
+        case .remaining: "settings.menubar.colorBasis.remaining"
+        case .pace: "settings.menubar.colorBasis.pace"
+        }
+    }
+}
+
 public extension QuotaDisplayMode {
     var localizationKey: String {
         switch self {

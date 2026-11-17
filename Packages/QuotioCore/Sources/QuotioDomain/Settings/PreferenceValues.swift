@@ -52,6 +52,16 @@ public enum MenuBarColorMode: String, Codable, CaseIterable, Identifiable, Senda
     public var id: String { rawValue }
 }
 
+/// What decides the color of a quota value in the menu bar when it is colored.
+public enum MenuBarColorBasis: String, Codable, CaseIterable, Identifiable, Sendable {
+    /// Fixed thresholds on the remaining percentage.
+    case remaining = "remaining"
+    /// Whether the limit is being spent faster than its window allows, as in the quota popup.
+    case pace = "pace"
+
+    public var id: String { rawValue }
+}
+
 public enum QuotaDisplayMode: String, Codable, CaseIterable, Identifiable, Sendable {
     case used = "used"
     case remaining = "remaining"
@@ -106,6 +116,7 @@ public struct MenuBarPreferences: Equatable, Sendable {
     public var selectedItems: [MenuBarQuotaItem]
     public var selectedProvider: QuotaProvider?
     public var colorMode: MenuBarColorMode
+    public var colorBasis: MenuBarColorBasis
     public var quotaDisplayMode: QuotaDisplayMode
     public var quotaDisplayStyle: QuotaDisplayStyle
     public var stackPairedQuotaMetrics: Bool
@@ -121,6 +132,7 @@ public struct MenuBarPreferences: Equatable, Sendable {
         selectedItems: [MenuBarQuotaItem] = [],
         selectedProvider: QuotaProvider? = nil,
         colorMode: MenuBarColorMode = .monochrome,
+        colorBasis: MenuBarColorBasis = .remaining,
         quotaDisplayMode: QuotaDisplayMode = .remaining,
         quotaDisplayStyle: QuotaDisplayStyle = .comfortable,
         stackPairedQuotaMetrics: Bool = true,
@@ -135,6 +147,7 @@ public struct MenuBarPreferences: Equatable, Sendable {
         self.selectedItems = selectedItems
         self.selectedProvider = selectedProvider
         self.colorMode = colorMode
+        self.colorBasis = colorBasis
         self.quotaDisplayMode = quotaDisplayMode
         self.quotaDisplayStyle = quotaDisplayStyle
         self.stackPairedQuotaMetrics = stackPairedQuotaMetrics

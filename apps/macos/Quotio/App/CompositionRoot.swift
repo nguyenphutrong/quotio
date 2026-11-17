@@ -445,6 +445,7 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
         statusBarManager.updateStatusBar(
             items: quotaItems,
             colorMode: menuBarSettings.colorMode,
+            colorBasis: menuBarSettings.colorBasis,
             quotaDisplayMode: menuBarSettings.quotaDisplayMode,
             isRunning: !quotaScreenModel.providerQuotas.isEmpty,
             showMenuBarIcon: menuBarSettings.showMenuBarIcon,
@@ -503,6 +504,8 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
             var displayPercent: Double = -1
             var isForbidden = false
             var quotaPair: MenuBarQuotaPair?
+            var paceStatus: QuotaPace.Status?
+            let now = Date()
 
             let account = accountsScreenModel.accounts.first {
                 $0.providerID.rawValue == provider.rawValue && $0.accountKey == selectedItem.accountKey
@@ -513,8 +516,9 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
                 isForbidden = quotaData.isForbidden
                 if !quotaData.models.isEmpty {
                     displayPercent = menuBarSettings.totalUsagePercent(summary: quotaData.summary)
+                    paceStatus = MenuBarPaceResolver.worstStatus(of: quotaData.models, now: now)
                     if menuBarSettings.stackPairedQuotaMetrics {
-                        quotaPair = MenuBarQuotaPair.resolve(from: quotaData.summary)
+                        quotaPair = MenuBarQuotaPair.resolve(from: quotaData.summary, metrics: quotaData.models, now: now)
                     }
                 }
             }
@@ -526,7 +530,8 @@ private final class ProductionAppRuntimeServices: AppRuntimeServices {
                 percentage: displayPercent,
                 provider: provider,
                 isForbidden: isForbidden,
-                quotaPair: quotaPair
+                quotaPair: quotaPair,
+                paceStatus: paceStatus
             )
         }
     }
