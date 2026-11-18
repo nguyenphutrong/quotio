@@ -38,24 +38,6 @@ Quotio 是一款原生 macOS 应用，用于管理 **CLIProxyAPI** ——为你�
 <table>
   <tr>
     <td width="180" align="center">
-      <a href="https://www.swiftproxy.net/?ref=quotio">
-        <img src=".github/assets/sponsors/swiftproxy.png" alt="Swiftproxy logo" width="160" />
-      </a>
-    </td>
-    <td>
-      Power your AI-powered workflows with
-      <a href="https://www.swiftproxy.net/?ref=quotio">Swiftproxy</a>, a residential
-      proxy provider offering rotating and static residential proxies for reliable web
-      access and data collection. Access 90M+ residential IPs across 220+ locations,
-      with HTTP(S), SOCKS5, and flexible rotating and sticky sessions. Try it for free
-      and get started with residential proxies from just $0.7/GB. Use code
-      <strong>PROXY90</strong> for an additional 10% off.
-      <br />
-      <a href="https://www.swiftproxy.net/?ref=quotio">Explore Swiftproxy →</a>
-    </td>
-  </tr>
-  <tr>
-    <td width="180" align="center">
       <a href="https://88api.ai/sign-up?aff=OMpN">
         <img src=".github/assets/sponsors/88api.jpg" alt="88API logo" width="160" />
       </a>
