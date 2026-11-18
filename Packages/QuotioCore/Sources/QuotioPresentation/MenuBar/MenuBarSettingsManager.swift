@@ -125,10 +125,13 @@ public final class RefreshSettingsManager {
 public struct MenuBarQuotaMetric: Equatable, Sendable {
     public let labelKey: String
     public let remainingPercentage: Double
+    /// Pace of the limit behind this value, when its window is known.
+    public let paceStatus: QuotaPace.Status?
 
-    public init(labelKey: String, remainingPercentage: Double) {
+    public init(labelKey: String, remainingPercentage: Double, paceStatus: QuotaPace.Status? = nil) {
         self.labelKey = labelKey
         self.remainingPercentage = remainingPercentage
+        self.paceStatus = paceStatus
     }
 }
 
@@ -142,12 +145,18 @@ public struct MenuBarQuotaPair: Equatable, Sendable {
         self.bottom = bottom
     }
 
-    public static func resolve(from summary: QuotaSummary?) -> MenuBarQuotaPair? {
+    /// `metrics` are the account's limits; with them each value also carries the pace of its limit.
+    public static func resolve(from summary: QuotaSummary?, metrics: [QuotaMetric] = [], now: Date = Date()) -> MenuBarQuotaPair? {
         guard let pair = summary?.pair, pair.count == 2 else { return nil }
-        return MenuBarQuotaPair(
-            top: .init(labelKey: pair[0].displayName, remainingPercentage: pair[0].remainingPercent ?? -1),
-            bottom: .init(labelKey: pair[1].displayName, remainingPercentage: pair[1].remainingPercent ?? -1)
-        )
+        func metric(_ value: QuotaSummary.Metric) -> MenuBarQuotaMetric {
+            let remaining = value.remainingPercent ?? -1
+            return MenuBarQuotaMetric(
+                labelKey: value.displayName,
+                remainingPercentage: remaining,
+                paceStatus: MenuBarPaceResolver.status(forPairValue: remaining, label: value.displayName, in: metrics, now: now)
+            )
+        }
+        return MenuBarQuotaPair(top: metric(pair[0]), bottom: metric(pair[1]))
     }
 
 }
@@ -161,6 +170,8 @@ public struct MenuBarQuotaDisplayItem: Identifiable, Equatable {
     public let provider: QuotaProvider
     public var isForbidden: Bool
     public var quotaPair: MenuBarQuotaPair?
+    /// Worst pace among the account's limits, for the single value.
+    public var paceStatus: QuotaPace.Status?
 
     public init(
         id: String,
@@ -169,7 +180,8 @@ public struct MenuBarQuotaDisplayItem: Identifiable, Equatable {
         percentage: Double,
         provider: QuotaProvider,
         isForbidden: Bool = false,
-        quotaPair: MenuBarQuotaPair? = nil
+        quotaPair: MenuBarQuotaPair? = nil,
+        paceStatus: QuotaPace.Status? = nil
     ) {
         self.id = id
         self.providerSymbol = providerSymbol
@@ -178,6 +190,7 @@ public struct MenuBarQuotaDisplayItem: Identifiable, Equatable {
         self.provider = provider
         self.isForbidden = isForbidden
         self.quotaPair = quotaPair
+        self.paceStatus = paceStatus
     }
     
     public var statusColor: Color {
@@ -189,6 +202,21 @@ public struct MenuBarQuotaDisplayItem: Identifiable, Equatable {
         if percentage > 50 { return .green }
         if percentage > 20 { return .orange }
         return .red
+    }
+
+    /// Colored by pace the value follows the quota popup: green on pace, orange when the
+    /// limit runs out before its reset at the current rate, red when it is used up.
+    /// Without a known window it falls back to the remaining thresholds.
+    public func statusColor(for percentage: Double, paceStatus: QuotaPace.Status?, basis: MenuBarColorBasis) -> Color {
+        guard !isForbidden, basis == .pace, percentage >= 0, let paceStatus else {
+            return statusColor(for: percentage)
+        }
+        if percentage <= 0 { return .red }
+        switch paceStatus {
+        case .onPace: return .green
+        case .behind: return .orange
+        case .exhausted: return .red
+        }
     }
 }
 
@@ -236,6 +264,11 @@ public final class MenuBarSettingsManager {
     
     /// Color mode (colored vs monochrome)
     public var colorMode: MenuBarColorMode {
+        didSet { persist() }
+    }
+
+    /// Whether colored values follow remaining thresholds or pace
+    public var colorBasis: MenuBarColorBasis {
         didSet { persist() }
     }
     
@@ -295,6 +328,7 @@ public final class MenuBarSettingsManager {
             selectedItems: selectedItems,
             selectedProvider: selectedProvider,
             colorMode: colorMode,
+            colorBasis: colorBasis,
             quotaDisplayMode: quotaDisplayMode,
             quotaDisplayStyle: quotaDisplayStyle,
             stackPairedQuotaMetrics: stackPairedQuotaMetrics,
@@ -314,6 +348,7 @@ public final class MenuBarSettingsManager {
         self.selectedItems = preferences.selectedItems
         self.selectedProvider = preferences.selectedProvider
         self.colorMode = preferences.colorMode
+        self.colorBasis = preferences.colorBasis
         self.quotaDisplayMode = preferences.quotaDisplayMode
         self.quotaDisplayStyle = preferences.quotaDisplayStyle
         self.stackPairedQuotaMetrics = preferences.stackPairedQuotaMetrics

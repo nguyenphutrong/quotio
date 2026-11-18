@@ -170,6 +170,7 @@ final class UserDefaultsPreferenceRepositoriesTests: XCTestCase {
 
         XCTAssertEqual(menu, MenuBarPreferences())
         XCTAssertEqual(menu.colorMode, .monochrome)
+        XCTAssertEqual(menu.colorBasis, .remaining)
         XCTAssertEqual(menu.quotaDisplayMode, .remaining)
         XCTAssertEqual(refresh, RefreshPreferences())
         XCTAssertEqual(warmup, WarmupPreferences())
@@ -195,6 +196,7 @@ final class UserDefaultsPreferenceRepositoriesTests: XCTestCase {
             selectedItems: [MenuBarQuotaItem(provider: "codex", accountKey: "user")],
             selectedProvider: .codex,
             colorMode: .monochrome,
+            colorBasis: .pace,
             quotaDisplayMode: .remaining,
             quotaDisplayStyle: .detailed,
             stackPairedQuotaMetrics: false,
@@ -206,6 +208,7 @@ final class UserDefaultsPreferenceRepositoriesTests: XCTestCase {
         let menuRepository = UserDefaultsMenuBarPreferencesRepository(defaults: defaults)
         menuRepository.save(menuPreferences)
         XCTAssertEqual(menuRepository.load(), menuPreferences)
+        XCTAssertEqual(defaults.string(forKey: "menuBarColorBasis"), "pace")
         XCTAssertNotNil(defaults.dictionary(forKey: "menuBarProviderSelectionV2")?["items"] as? Data)
         XCTAssertEqual(defaults.dictionary(forKey: "menuBarProviderSelectionV2")?["provider"] as? String, "codex")
 
