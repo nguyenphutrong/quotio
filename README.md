@@ -66,26 +66,6 @@ service.
 
 ## Sponsors
 
-### Featured Sponsor
-
-<p align="center">
-  <a href="https://pateway.ai/?ch=wmw7uy">
-    <img
-      src=".github/assets/sponsors/patewayai.png"
-      alt="PatewayAI official model API relay service for Claude and GPT"
-      width="100%"
-    />
-  </a>
-</p>
-
-Thanks to [PatewayAI](https://pateway.ai/?ch=wmw7uy) for sponsoring this project!
-PatewayAI specializes in high-quality official model API relay services. It fully
-supports Claude and GPT series, with transparent billing and enterprise-grade services.
-Our Economy Mode offers discounts as low as 5% off!
-[Sign up via this link](https://pateway.ai/?ch=wmw7uy) to receive trial credits. You
-can also join occasional promotions to claim free credits. The two-way referral reward
-is up to $150.
-
 ### Standard Sponsors
 
 <table>
