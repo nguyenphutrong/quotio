@@ -38,21 +38,6 @@ Quotio 是一款原生 macOS 应用，用于管理 **CLIProxyAPI** ——为你�
 <table>
   <tr>
     <td width="180" align="center">
-      <a href="https://88api.ai/sign-up?aff=OMpN">
-        <img src=".github/assets/sponsors/88api.jpg" alt="88API logo" width="160" />
-      </a>
-    </td>
-    <td>
-      感谢 <a href="https://88api.ai/sign-up?aff=OMpN">88API Token聚合平台</a>赞助了本项目！88API
-      是一家由香港企业运营并且主要面向开发者、创作者与 AI 应用用户的一站式多模型 API
-      平台，通过统一接口接入文本、图片、语音和视频模型，覆盖 AI 编程、智能翻译、内容创作、配音、图像生成、视频生成等常见工作流。可以直接在
-      CC Switch 中完成 Provider 添加并切换，支持国际主流付款方式，可提供发票，提供企业级稳定服务。<a href="https://88api.ai/sign-up?aff=OMpN">通过此链接注册</a>可以获取专属赠送额度！
-      <br />
-      <a href="https://88api.ai/sign-up?aff=OMpN">Explore 88API →</a>
-    </td>
-  </tr>
-  <tr>
-    <td width="180" align="center">
       <a href="https://proxy-seller.com/?partner=442060D973F44C90">
         <img src=".github/assets/sponsors/proxy-seller.png" alt="Proxy-Seller logo" width="160" />
       </a>

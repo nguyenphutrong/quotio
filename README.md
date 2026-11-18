@@ -71,26 +71,6 @@ service.
 <table>
   <tr>
     <td width="180" align="center">
-      <a href="https://88api.ai/sign-up?aff=OMpN">
-        <img src=".github/assets/sponsors/88api.jpg" alt="88API logo" width="160" />
-      </a>
-    </td>
-    <td>
-      <a href="https://88api.ai/sign-up?aff=OMpN">88API</a> is a Hong Kong-operated
-      multi-model AI API platform for developers, creators, and AI applications. It
-      provides a unified API for text, image, audio, and video models, supporting common
-      workflows such as AI coding, translation, content creation, voice generation, image
-      generation, and video generation. 88API can be added and switched directly in CC
-      Switch. It supports major international payment methods, can provide invoices, and
-      offers stable service for teams and individual developers. Users who register
-      through <a href="https://88api.ai/sign-up?aff=OMpN">this dedicated link</a> may
-      receive complimentary credits.
-      <br />
-      <a href="https://88api.ai/sign-up?aff=OMpN">Explore 88API →</a>
-    </td>
-  </tr>
-  <tr>
-    <td width="180" align="center">
       <a href="https://proxy-seller.com/?partner=442060D973F44C90">
         <img src=".github/assets/sponsors/proxy-seller.png" alt="Proxy-Seller logo" width="160" />
       </a>
