@@ -53,20 +53,6 @@ Quotio est une application macOS native pour gérer **CLIProxyAPI** - un serveur
       <a href="https://proxy-seller.com/?partner=442060D973F44C90">Explore Proxy-Seller →</a>
     </td>
   </tr>
-  <tr>
-    <td width="180" align="center">
-      <a href="https://x6.ai">
-        <img src=".github/assets/sponsors/x6ai.png" alt="x6.ai logo" width="160" />
-      </a>
-    </td>
-    <td>
-      <a href="https://x6.ai">x6.ai</a>: One API key for every major model. Official-key and proxy
-      channels, up to 90% off, free credits on sign-up. Pay with Alipay, Google Pay,
-      Apple Pay, Visa or Mastercard.
-      <br />
-      <a href="https://x6.ai">Explore x6.ai →</a>
-    </td>
-  </tr>
 </table>
 
 Interested in sponsoring Quotio? Contact
