@@ -16,6 +16,7 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     private struct Configuration: Equatable {
         let items: [MenuBarQuotaDisplayItem]
         let colorMode: MenuBarColorMode
+        let colorBasis: MenuBarColorBasis
         let quotaDisplayMode: QuotaDisplayMode
         let isRunning: Bool
         let showQuota: Bool
@@ -63,6 +64,7 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
     public func updateStatusBar(
         items: [MenuBarQuotaDisplayItem],
         colorMode: MenuBarColorMode,
+        colorBasis: MenuBarColorBasis = .remaining,
         quotaDisplayMode: QuotaDisplayMode,
         isRunning: Bool,
         showMenuBarIcon: Bool,
@@ -77,6 +79,7 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
         configuration = Configuration(
             items: items,
             colorMode: colorMode,
+            colorBasis: colorBasis,
             quotaDisplayMode: quotaDisplayMode,
             isRunning: isRunning,
             showQuota: showQuota,
@@ -141,6 +144,7 @@ public final class StatusBarManager: NSObject, NSMenuDelegate {
         let quotaView = StatusBarQuotaView(
             items: configuration.items,
             colorMode: configuration.colorMode,
+            colorBasis: configuration.colorBasis,
             quotaDisplayMode: configuration.quotaDisplayMode
         )
         .environment(\.colorScheme, colorScheme)
@@ -316,6 +320,7 @@ struct StatusBarDefaultView: View {
 struct StatusBarQuotaView: View {
     let items: [MenuBarQuotaDisplayItem]
     let colorMode: MenuBarColorMode
+    var colorBasis: MenuBarColorBasis = .remaining
     let quotaDisplayMode: QuotaDisplayMode
     
     var body: some View {
@@ -324,6 +329,7 @@ struct StatusBarQuotaView: View {
                 StatusBarQuotaItemView(
                     item: item,
                     colorMode: colorMode,
+                    colorBasis: colorBasis,
                     quotaDisplayMode: quotaDisplayMode
                 )
             }
@@ -339,6 +345,7 @@ struct StatusBarQuotaView: View {
 struct StatusBarQuotaItemView: View {
     let item: MenuBarQuotaDisplayItem
     let colorMode: MenuBarColorMode
+    var colorBasis: MenuBarColorBasis = .remaining
     var quotaDisplayMode: QuotaDisplayMode = .used
     
     var body: some View {
@@ -363,14 +370,16 @@ struct StatusBarQuotaItemView: View {
                     .foregroundStyle(.orange)
             } else if let quotaPair = item.quotaPair {
                 VStack(alignment: .trailing, spacing: 0) {
-                    compactQuotaText(quotaPair.top.remainingPercentage)
-                    compactQuotaText(quotaPair.bottom.remainingPercentage)
+                    compactQuotaText(quotaPair.top)
+                    compactQuotaText(quotaPair.bottom)
                 }
                 .frame(height: 18)
             } else if item.percentage >= 0 {
                 Text(formatPercentage(displayPercent))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(colorMode == .colored ? item.statusColor : .primary)
+                    .foregroundStyle(colorMode == .colored
+                        ? item.statusColor(for: item.percentage, paceStatus: item.paceStatus, basis: colorBasis)
+                        : .primary)
                     .fixedSize()
             }
         }
@@ -384,13 +393,14 @@ struct StatusBarQuotaItemView: View {
         return String(format: "%.0f%%", clamped.rounded())
     }
 
-    private func compactQuotaText(_ remainingValue: Double) -> some View {
+    private func compactQuotaText(_ metric: MenuBarQuotaMetric) -> some View {
+        let remainingValue = metric.remainingPercentage
         let displayedValue = remainingValue < 0
             ? -1
             : quotaDisplayMode.displayValue(from: remainingValue)
         let quotaColor: Color = remainingValue < 0
             ? .secondary
-            : item.statusColor(for: remainingValue)
+            : item.statusColor(for: remainingValue, paceStatus: metric.paceStatus, basis: colorBasis)
 
         return Text(formatPercentage(displayedValue))
             .font(.system(size: 8.5, weight: .semibold, design: .monospaced))

@@ -38,6 +38,13 @@ struct MenuBarSettingsSection: View {
         )
     }
 
+    private var colorBasisBinding: Binding<MenuBarColorBasis> {
+        Binding(
+            get: { settings.colorBasis },
+            set: { settings.colorBasis = $0 }
+        )
+    }
+
     private var stackPairedQuotaMetricsBinding: Binding<Bool> {
         Binding(
             get: { settings.stackPairedQuotaMetrics },
@@ -96,6 +103,15 @@ struct MenuBarSettingsSection: View {
                         Text("settings.menubar.monochrome".localized()).tag(MenuBarColorMode.monochrome)
                     }
                     .pickerStyle(.segmented)
+
+                    if settings.colorMode == .colored {
+                        Picker("settings.menubar.colorBasis".localized(), selection: colorBasisBinding) {
+                            ForEach(MenuBarColorBasis.allCases) { basis in
+                                Text(basis.localizationKey.localized()).tag(basis)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
                 }
             }
         } header: {

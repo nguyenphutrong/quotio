@@ -75,6 +75,7 @@ public final class UserDefaultsMenuBarPreferencesRepository: MenuBarPreferencesR
             selectedItems: MenuBarQuotaItem.limited(selectedItems, perHost: maximum),
             selectedProvider: selectedProvider.flatMap(QuotaProvider.init(rawValue:)),
             colorMode: MenuBarColorMode(rawValue: defaults.string(forKey: "menuBarColorMode") ?? "") ?? .monochrome,
+            colorBasis: MenuBarColorBasis(rawValue: defaults.string(forKey: "menuBarColorBasis") ?? "") ?? .remaining,
             quotaDisplayMode: QuotaDisplayMode(rawValue: defaults.string(forKey: "quotaDisplayMode") ?? "") ?? .remaining,
             quotaDisplayStyle: QuotaDisplayStyle(storedValue: defaults.string(forKey: "quotaDisplayStyle") ?? "") ?? .comfortable,
             stackPairedQuotaMetrics: defaults.bool(forKey: "menuBarStackClaudeQuotaWindows"),
@@ -91,6 +92,7 @@ public final class UserDefaultsMenuBarPreferencesRepository: MenuBarPreferencesR
         defaults.set(preferences.showQuotaInMenuBar, forKey: "menuBarShowQuota")
         defaults.set(maximum, forKey: "menuBarMaxItems")
         defaults.set(preferences.colorMode.rawValue, forKey: "menuBarColorMode")
+        defaults.set(preferences.colorBasis.rawValue, forKey: "menuBarColorBasis")
         defaults.set(preferences.quotaDisplayMode.rawValue, forKey: "quotaDisplayMode")
         defaults.set(preferences.quotaDisplayStyle.rawValue, forKey: "quotaDisplayStyle")
         defaults.set(preferences.stackPairedQuotaMetrics, forKey: "menuBarStackClaudeQuotaWindows")
